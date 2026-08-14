@@ -63,6 +63,7 @@ Rather than executing a hardcoded sequential pipeline, the LLM dynamically deter
 7. `escalate`: Triggers external state airlift requests when local capacity collapses.
 8. `inspect_evidence`: Evaluates incoming reconnaissance reports.
 9. `simulate_action`: Dispatches simulated units on authorized routes.
+10. `generate_decision_packet`: Autonomously submits the final candidate decision packet for deterministic safety validation and human authorization.
 
 ---
 

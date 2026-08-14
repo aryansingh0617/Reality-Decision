@@ -107,7 +107,10 @@ class AutonomousPlannerAgent:
             "You are the Lead Autonomous Planning Agent for REALITY//DECISION emergency mission response.\n"
             "Your objective: Safely evacuate affected populations by evaluating reality disruptions, selecting real tools, "
             "evaluating dependencies and counterfactuals, challenging invalid routes, and producing a validated decision packet.\n"
-            "You must invoke tools to gather evidence, query the graph, evaluate candidates, and validate constraints."
+            "You must invoke tools to gather evidence, query the graph, evaluate candidates, and validate constraints.\n"
+            "CRITICAL REQUIREMENT: Once you have investigated reality and determined a valid plan (or confirmed capacity gap/escalation), "
+            "you MUST issue a function call to `generate_decision_packet` with your final recommendation, route_id, rationale, "
+            "critical_assumption, and consequence_if_wrong. Do NOT output plain text summaries without calling `generate_decision_packet`."
         )
 
         contents: List[Dict[str, Any]] = [
@@ -115,7 +118,7 @@ class AutonomousPlannerAgent:
                 "role": "user",
                 "parts": [
                     {
-                        "text": f"Current Reality Disruption: {self.state.last_state_change or 'Initial Baseline'}. Policy: {self.state.policy.value}. Evacuation Demand: 25 slots. Begin investigation and replanning."
+                        "text": f"Current Reality Disruption: {self.state.last_state_change or 'Initial Baseline'}. Policy: {self.state.policy.value}. Evacuation Demand: 25 slots. Begin investigation and submit final decision packet via generate_decision_packet tool call."
                     }
                 ],
             }
@@ -123,6 +126,7 @@ class AutonomousPlannerAgent:
 
         steps = 0
         total_model_tool_calls = 0
+        packet_accepted = False
 
         while steps < MAX_AGENT_STEPS:
             steps += 1
@@ -256,7 +260,7 @@ class AutonomousPlannerAgent:
                             action_type="TOOL_RESULT_RETURNED_TO_LLM",
                             tool=fn_name,
                             arguments={"turn": steps},
-                            result={"tool_result_id": tool_result.execution_id},
+                            result={"tool_result_id": tool_result.execution_id, "result": tool_result.result_payload},
                             status="SUCCESS",
                             latency_ms=0.0,
                             timestamp=datetime.now().isoformat(),
@@ -265,45 +269,35 @@ class AutonomousPlannerAgent:
                         )
                     )
 
+                    # Check if Gemini generated an accepted decision packet
+                    if fn_name == "generate_decision_packet" and tool_result.status == "SUCCESS":
+                        if isinstance(tool_result.result_payload, dict) and tool_result.result_payload.get("accepted"):
+                            packet_accepted = True
+                            self.state.replan_count += 1
+                            self.execution_history.append(
+                                ExecutionRecord(
+                                    execution_id=f"plan_{uuid.uuid4().hex[:8]}",
+                                    agent="Autonomous Planner",
+                                    action_type="FINAL_PLAN",
+                                    tool="generate_decision_packet",
+                                    arguments=args,
+                                    result=tool_result.result_payload,
+                                    status="SUCCESS",
+                                    latency_ms=0.0,
+                                    timestamp=datetime.now().isoformat(),
+                                    reasoning_mode="LLM_AGENTIC",
+                                    source="LLM_TOOL_CALL",
+                                )
+                            )
+                            yield {"step": "complete", "data": self.state.current_packet}
+                            return
+
             if not has_tool_call:
-                # LLM finished reasoning
+                # LLM output text without function call
                 break
 
-        # Finalize authoritative decision packet
-        risk = RiskEngine.assess(self.state)
-        decision_packet = DecisionAgent.generate_packet(self.state, risk)
-        sim_report = SimulationAgent.stress_test(self.state, None)
-        decision_packet.counterfactual_branches = [
-            {
-                "name": c.name,
-                "recommendation": c.recommendation,
-                "route_id": c.route_id,
-                "delay_min": c.delay_min,
-                "branch_status": c.branch_status,
-                "score": c.score,
-            }
-            for c in sim_report.counterfactuals
-        ]
-        self.state.current_packet = decision_packet
-        self.state.replan_count += 1
-        
-        # Record FINAL_PLAN in history
-        self.execution_history.append(
-            ExecutionRecord(
-                execution_id=f"plan_{uuid.uuid4().hex[:8]}",
-                agent="Autonomous Planner",
-                action_type="FINAL_PLAN",
-                tool="generate_decision_packet",
-                arguments={"policy": self.state.policy.value},
-                result={"recommendation": decision_packet.recommendation, "route_id": decision_packet.route_id},
-                status="SUCCESS",
-                latency_ms=0.0,
-                timestamp=datetime.now().isoformat(),
-                reasoning_mode="LLM_AGENTIC",
-                source="LLM_TOOL_CALL" if total_model_tool_calls > 0 else "SYSTEM",
-            )
-        )
-        yield {"step": "complete", "data": decision_packet}
+        if not packet_accepted:
+            raise RuntimeError("LLM loop completed without generating an accepted DecisionPacket via generate_decision_packet function call.")
 
     def _run_deterministic_agent_loop(self) -> Generator[Dict[str, Any], None, None]:
         """Dynamic Deterministic Agentic Control Loop with real ToolRegistry invocations."""

@@ -289,6 +289,155 @@ class ToolRegistry:
             }
         )
 
+        # 10. generate_decision_packet
+        self.register(
+            "generate_decision_packet",
+            "Autonomously generate and submit the final DecisionPacket recommendation for human authorization after inspecting reality state and constraints.",
+            {
+                "type": "object",
+                "properties": {
+                    "recommendation": {
+                        "type": "string",
+                        "description": "Final recommendation title (e.g. 'ROUTE R-12 — FAST CORRIDOR', 'ROUTE R-14 — SAFE BYPASS DETOUR', 'CAPACITY GAP — EXTERNAL ESCALATION REQUIRED')"
+                    },
+                    "route_id": {
+                        "type": "string",
+                        "description": "Selected corridor route_id if applicable (e.g. 'route_r12', 'route_r14')"
+                    },
+                    "rationale": {
+                        "type": "string",
+                        "description": "Detailed reasoning for the recommendation based on tool evidence"
+                    },
+                    "critical_assumption": {
+                        "type": "string",
+                        "description": "Key assumption underlying the recommendation"
+                    },
+                    "consequence_if_wrong": {
+                        "type": "string",
+                        "description": "Potential negative consequence if the assumption fails"
+                    },
+                    "confidence": {
+                        "type": "string",
+                        "description": "Confidence assessment: 'HIGH', 'MEDIUM', or 'LOW'"
+                    }
+                },
+                "required": ["recommendation", "rationale"]
+            },
+            lambda s, st, g, p: _generate_decision_packet_tool(s, st, g, p)
+        )
+
+
+def _generate_decision_packet_tool(
+    state: RealityState, store: EvidenceStore, graph: DependencyGraph, params: Dict[str, Any]
+) -> Dict[str, Any]:
+    rec = params.get("recommendation", "ROUTE R-12 — FAST CORRIDOR")
+    route_id = params.get("route_id")
+    rationale = params.get("rationale", "Evaluated operational state and candidate routes.")
+    crit_assumption = params.get("critical_assumption", "Selected corridor remains operational.")
+    consequence = params.get("consequence_if_wrong", "Evacuation delay increased.")
+    conf_str = params.get("confidence", "HIGH").upper()
+
+    # 1. Deterministic Safety Validation
+    validation = _validate_decision_packet_proposal(state, rec, route_id)
+    if not validation["valid"]:
+        return {
+            "accepted": False,
+            "status": "REJECTED_BY_SAFETY_VALIDATOR",
+            "reason": validation["reason"],
+            "suggestion": validation.get("suggestion", "Select an operational alternative route or call escalate tool.")
+        }
+
+    # 2. Build authoritative DecisionPacket reusing existing DecisionAgent / state model
+    risk = RiskEngine.assess(state)
+    packet = DecisionAgent.generate_packet(state, risk)
+
+    # Override fields with Gemini model-generated arguments
+    if rec:
+        packet.recommendation = rec
+    if route_id:
+        packet.route_id = route_id
+    elif not packet.route_id:
+        if "R-12" in rec or "r12" in rec.lower():
+            packet.route_id = "route_r12"
+        elif "R-14" in rec or "r14" in rec.lower():
+            packet.route_id = "route_r14"
+
+    if rationale:
+        packet.why = rationale
+    if crit_assumption:
+        packet.critical_assumption = crit_assumption
+    if consequence:
+        packet.consequence_if_wrong = consequence
+
+    sim_report = SimulationAgent.stress_test(state, None)
+    packet.counterfactual_branches = [
+        {
+            "name": c.name,
+            "recommendation": c.recommendation,
+            "route_id": c.route_id,
+            "delay_min": c.delay_min,
+            "branch_status": c.branch_status,
+            "score": c.score,
+        }
+        for c in sim_report.counterfactuals
+    ]
+
+    # Assign state.current_packet
+    state.current_packet = packet
+
+    return {
+        "accepted": True,
+        "status": "DECISION_PACKET_VALIDATED_AND_CREATED",
+        "recommendation": packet.recommendation,
+        "route_id": packet.route_id,
+        "confidence": packet.confidence.value,
+        "policy": packet.policy.value,
+        "why": packet.why,
+        "critical_assumption": packet.critical_assumption,
+    }
+
+
+def _validate_decision_packet_proposal(
+    state: RealityState, recommendation: str, route_id: Optional[str]
+) -> Dict[str, Any]:
+    rec_upper = recommendation.upper()
+
+    # Check for capacity gap / escalation proposal
+    if "ESCALATION" in rec_upper or "CAPACITY GAP" in rec_upper:
+        avail_cap = sum(v.capacity for v in state.vehicles.values() if v.available)
+        if avail_cap <= 0 or state.escalation_required:
+            return {"valid": True}
+        viable = [r for r, obj in state.routes.items() if obj.operational and obj.status != EntityStatus.UNAVAILABLE]
+        if not viable:
+            return {"valid": True}
+
+    # Infer target route ID if missing
+    target_route = route_id
+    if not target_route:
+        if "R-12" in rec_upper or "r12" in recommendation.lower():
+            target_route = "route_r12"
+        elif "R-14" in rec_upper or "r14" in recommendation.lower():
+            target_route = "route_r14"
+
+    if target_route and target_route in state.routes:
+        route_obj = state.routes[target_route]
+        if route_obj.status == EntityStatus.UNAVAILABLE or not route_obj.operational:
+            return {
+                "valid": False,
+                "reason": f"Safety Validator Rejected: Proposed route '{route_obj.name}' ({target_route}) is UNAVAILABLE due to bridge/corridor failure.",
+                "suggestion": "Select a viable operational detour (e.g. route_r14) or call escalate tool."
+            }
+
+    avail_cap = sum(v.capacity for v in state.vehicles.values() if v.available)
+    if avail_cap <= 0 and not ("ESCALATION" in rec_upper or "CAPACITY" in rec_upper):
+        return {
+            "valid": False,
+            "reason": "Safety Validator Rejected: Vehicle capacity is 0. Recommendation must request EXTERNAL ESCALATION.",
+            "suggestion": "Propose CAPACITY GAP — EXTERNAL ESCALATION REQUIRED or call escalate tool."
+        }
+
+    return {"valid": True}
+
 
 def _validate_route_candidate(state: RealityState, route_id: Optional[str]) -> Dict[str, Any]:
     if not route_id or route_id not in state.routes:
