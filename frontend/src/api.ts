@@ -1,4 +1,14 @@
-const API_BASE = 'http://localhost:8000/api';
+const getApiBase = () => {
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL;
+  }
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    return '/api';
+  }
+  return 'http://localhost:8000/api';
+};
+
+const API_BASE = getApiBase();
 
 export interface Route {
   id: string;
