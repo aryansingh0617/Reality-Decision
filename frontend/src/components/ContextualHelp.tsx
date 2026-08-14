@@ -146,7 +146,7 @@ export const WhatJustHappenedPanel: React.FC<WhatJustHappenedProps> = ({ state }
   let eventText = 'Baseline nominal operations.';
   let keyFinding = 'Bridge B-07 accessible; Route R-12 operating at optimal evacuation speed.';
   let impactText = 'No active disruptions. Decision window open.';
-  let nextAction = 'Inject a disruption (e.g. Bridge B-07 Failure) or click GUIDED WALKTHROUGH.';
+  let nextAction = 'Inject a disruption (e.g. Bridge B-07 Failure).';
 
   if (isR12Blocked) {
     eventText = 'Reality Disruption Injected: Bridge B-07 Failure.';
