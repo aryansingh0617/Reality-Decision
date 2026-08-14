@@ -4,6 +4,7 @@
   "outputDirectory": "frontend/dist",
   "routes": [
     { "src": "/api/(.*)", "dest": "/api/index.py" },
+    { "src": "/(.*\\.(js|css|png|jpg|svg|ico|json|webp|avif|woff2?))", "dest": "/$1" },
     { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
