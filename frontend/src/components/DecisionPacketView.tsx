@@ -25,7 +25,7 @@ export const DecisionPacketView: React.FC<DecisionPacketViewProps> = ({
   const isRejected = packet.authorization_status === 'REJECTED';
 
   return (
-    <div className="panel flex flex-col h-full font-mono text-left max-h-[550px] overflow-y-auto">
+    <div className="panel flex flex-col h-full font-mono text-left">
       {/* Panel Header */}
       <div className="panel-header">
         <span className="panel-title">Decision Intelligence Packet</span>
@@ -56,14 +56,16 @@ export const DecisionPacketView: React.FC<DecisionPacketViewProps> = ({
         </div>
       </div>
 
-      <div className="p-4 flex flex-col gap-4">
-        {/* Replit Decision Callout */}
-        <div className="decision-callout">
-          <span>RECOMMENDED ACTION / PLAN</span>
-          <strong className={packet.capacity_gap ? 'text-[#e45b55]' : 'text-[#f5c86e]'}>
+      <div className="p-5 flex flex-col gap-4">
+        {/* Decision Callout Card */}
+        <div className="decision-callout border-l-4 border-[#30d158] bg-[#30d158]/10 p-4 rounded-r-lg text-left shadow-sm">
+          <span className="text-[10px] text-[#30d158] font-mono font-extrabold uppercase tracking-widest block mb-1">
+            RECOMMENDED ACTION / PLAN
+          </span>
+          <h3 className={`text-lg font-mono font-extrabold leading-snug my-1.5 ${packet.capacity_gap ? 'text-[#ff453a]' : 'text-[#30d158]'}`}>
             {packet.recommendation}
-          </strong>
-          <p>Mission: {packet.mission} · Policy: {packet.policy}</p>
+          </h3>
+          <p className="text-xs text-[#9eb0c0] font-mono mt-1">Mission: {packet.mission} · Policy: {packet.policy}</p>
         </div>
 
         {/* Missing High-Value Information */}
@@ -143,37 +145,43 @@ export const DecisionPacketView: React.FC<DecisionPacketViewProps> = ({
 
         {/* Replit Confidence Track Bar */}
         <div className="confidence border-t border-[#253139] pt-3">
-          <div className="confidence-head">
-            <span>Confidence Assessment</span>
-            <b>{packet.confidence}</b>
+          <div className="flex items-center justify-between text-xs mb-2 font-mono">
+            <span className="text-[#8a9aaa] uppercase tracking-wider font-semibold">Confidence Assessment:</span>
+            <b className="text-[#6fa8dc] font-bold text-xs bg-[#6fa8dc]/15 px-2.5 py-1 rounded border border-[#6fa8dc]/40">
+              {packet.confidence}
+            </b>
           </div>
-          <div className="confidence-track">
-            <i style={{ width: packet.confidence === 'HIGH' ? '90%' : packet.confidence === 'MEDIUM' ? '65%' : '35%' }}></i>
+          <div className="confidence-track h-2 bg-[#0a0f12] rounded-full overflow-hidden border border-[#253139]">
+            <i
+              className="h-full block bg-gradient-to-r from-[#6fa8dc] to-[#65c89a] transition-all duration-500 rounded-full"
+              style={{ width: packet.confidence === 'HIGH' ? '90%' : packet.confidence === 'MEDIUM' ? '65%' : '35%' }}
+            ></i>
           </div>
         </div>
 
         {/* Human Authorization Buttons */}
         {packet.authorization_status === 'PENDING' && (
-          <div className="border-t border-[#253139] pt-3 flex gap-2">
+          <div className="border-t border-[#253139] pt-4 flex items-center gap-3">
             <button
               onClick={() => onAuthorize('AUTHORIZE')}
-              className="primary-btn flex-1 flex items-center justify-center gap-1.5"
+              className="flex-1 min-h-[42px] px-4 bg-[#10b981] hover:bg-[#059669] text-[#04070a] font-mono font-extrabold text-xs rounded-lg transition-all flex items-center justify-center gap-2 shadow-md cursor-pointer border border-[#10b981]"
             >
-              <Check className="w-3.5 h-3.5" /> AUTHORIZE PLAN
+              <Check className="w-4 h-4 text-[#04070a]" />
+              <span className="text-[#04070a] font-black tracking-wider">AUTHORIZE PLAN</span>
             </button>
 
             <button
               onClick={() => onAuthorize('REQUEST_VERIFY')}
-              className="secondary-btn flex items-center justify-center gap-1.5"
+              className="px-4 min-h-[42px] bg-[#0d1418] border border-[#253139] hover:border-[#38bdf8] text-[#38bdf8] font-mono font-bold text-xs rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer"
             >
-              <HelpCircle className="w-3.5 h-3.5 text-[#6fa8dc]" /> RECON VFY
+              <HelpCircle className="w-3.5 h-3.5 text-[#38bdf8]" /> RECON VFY
             </button>
 
             <button
               onClick={() => onAuthorize('REJECT')}
-              className="secondary-btn text-[#e45b55] hover:border-[#e45b55] hover:bg-[#e45b55]/10 flex items-center justify-center gap-1.5"
+              className="px-4 min-h-[42px] bg-[#0d1418] border border-[#253139] hover:border-[#ef4444] text-[#ef4444] hover:bg-[#ef4444]/10 font-mono font-bold text-xs rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer"
             >
-              <X className="w-3.5 h-3.5" /> REJECT
+              <X className="w-3.5 h-3.5 text-[#ef4444]" /> REJECT
             </button>
           </div>
         )}

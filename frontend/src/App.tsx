@@ -292,36 +292,38 @@ function App() {
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={SPRING.CINEMATIC}
-        className="max-w-[1440px] w-full mx-auto px-4 md:px-8 py-6 flex flex-col gap-6"
+        className="max-w-[1440px] w-full mx-auto px-6 py-6 flex flex-col gap-6"
       >
         {/* Role Selector & Narrative Panel Component */}
         <RoleViews state={state} role={role} onRoleChange={setRole} onAuthorize={handleAuthorize} />
 
         {/* Hero Mission Statement Banner */}
-        <section className="briefing bg-[#14181a] border border-[#242a2e] rounded-lg p-5 text-left" id="mission-briefing-panel">
-          <div className="text-[10px] font-mono text-[#8a9aaa] uppercase tracking-widest mb-1">
-            OPERATION ASSAM FLOOD <span className="text-[#5a6a7a]">/</span> INCIDENT COMMAND 04
+        <section className="briefing bg-[#14181a] border border-[rgba(255,255,255,0.1)] rounded-xl p-6 text-left backdrop-blur-md shadow-lg" id="mission-briefing-panel">
+          <div className="text-[10px] font-mono text-[#94a3b8] uppercase tracking-widest mb-1.5 font-bold">
+            OPERATION ASSAM FLOOD <span className="text-[#64748b]">/</span> INCIDENT COMMAND 04
           </div>
-          <h2 className="text-xl font-bold text-[#e8edf2] mb-2">Evacuation Logistics & Counterfactual Re-planning</h2>
-          <p className="text-xs text-[#8a9aaa] leading-relaxed max-w-3xl">
+          <h2 className="text-xl font-bold text-[#f8fafc] mb-2 leading-tight">
+            Evacuation Logistics & Counterfactual Re-planning
+          </h2>
+          <p className="text-xs text-[#94a3b8] leading-relaxed max-w-3xl font-sans">
             Autonomous multi-agent decision support for environments where reality changes faster than humans can manually re-plan. Real-world disruptions trigger independent agent investigation, dependency cascades, counterfactual simulations, and autonomous replanning.
           </p>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 pt-4 border-t border-[#242a2e] text-xs font-mono">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-5 pt-4 border-t border-[#334155] text-xs font-mono">
             <div>
-              <span className="text-[#5a6a7a] block text-[9px] uppercase">TARGET SHELTER</span>
-              <strong className="text-[#e8edf2]">Shelter S-04</strong>
+              <span className="text-[#64748b] block text-[9px] uppercase font-bold tracking-wider">TARGET SHELTER</span>
+              <strong className="text-[#f8fafc] font-semibold">Shelter S-04</strong>
             </div>
             <div>
-              <span className="text-[#5a6a7a] block text-[9px] uppercase">PRIMARY DEPOT</span>
-              <strong className="text-[#e8edf2]">Depot D-03</strong>
+              <span className="text-[#64748b] block text-[9px] uppercase font-bold tracking-wider">PRIMARY DEPOT</span>
+              <strong className="text-[#f8fafc] font-semibold">Depot D-03</strong>
             </div>
             <div>
-              <span className="text-[#5a6a7a] block text-[9px] uppercase">VEHICLE CAPACITY</span>
-              <strong className="text-[#e8edf2]">{totalVehicleCapacity} Slots ({availableVehicleCount} Trucks)</strong>
+              <span className="text-[#64748b] block text-[9px] uppercase font-bold tracking-wider">VEHICLE CAPACITY</span>
+              <strong className="text-[#f8fafc] font-semibold">{totalVehicleCapacity} Slots ({availableVehicleCount} Trucks)</strong>
             </div>
             <div>
-              <span className="text-[#5a6a7a] block text-[9px] uppercase">ENVIRONMENT</span>
-              <strong className="text-[#f39c12] uppercase">{state.weather}</strong>
+              <span className="text-[#64748b] block text-[9px] uppercase font-bold tracking-wider">ENVIRONMENT</span>
+              <strong className="text-[#f59e0b] uppercase font-bold">{state.weather}</strong>
             </div>
           </div>
         </section>
@@ -332,18 +334,18 @@ function App() {
         {/* Continuous Sentinel Status Banner */}
         <motion.section
           transition={SPRING.BUTTER}
-          className={`p-3.5 rounded-lg border font-mono text-xs flex items-center justify-between transition-all ${
+          className={`p-4 rounded-xl border font-mono text-xs flex flex-wrap items-center justify-between gap-3 transition-all backdrop-blur-md ${
             isSentinelAlert
-              ? 'border-[#e74c3c] bg-[#e74c3c]/15 text-[#e74c3c] shadow-lg shadow-[#e74c3c]/20'
+              ? 'border-[#ff453a] bg-[#ff453a]/15 text-[#ff453a] shadow-lg shadow-[#ff453a]/25'
               : isAuthorized
-              ? 'border-[#2ecc71]/50 bg-[#2ecc71]/10 text-[#2ecc71]'
-              : 'border-[#242a2e] bg-[#14181a] text-[#8a9aaa]'
+              ? 'border-[#30d158]/50 bg-[#30d158]/10 text-[#30d158]'
+              : 'border-[rgba(255,255,255,0.1)] bg-[#0d1418]/80 text-[#9eb0c0]'
           }`}
         >
-          <div className="flex items-center gap-2">
-            <Activity className={`w-4 h-4 ${isSentinelAlert ? 'animate-spin text-[#e74c3c]' : 'text-[#3498db]'}`} />
-            <strong className="uppercase">CONTINUOUS SENTINEL STATUS:</strong>
-            <span>
+          <div className="flex items-center gap-3 flex-1 min-w-[280px]">
+            <Activity className={`w-4 h-4 flex-shrink-0 ${isSentinelAlert ? 'animate-spin text-[#ff453a]' : 'text-[#0a84ff]'}`} />
+            <span className="font-bold uppercase tracking-wider text-[#f5f7fa]">CONTINUOUS SENTINEL STATUS:</span>
+            <span className="text-[#a0b2c6] font-medium leading-relaxed">
               {isSentinelAlert
                 ? '⚠ AUTHORIZED PLAN AT RISK — Post-authorization reality shift detected! Autonomously replanning...'
                 : isAuthorized
@@ -351,69 +353,78 @@ function App() {
                 : 'STANDBY — Awaiting initial plan authorization'}
             </span>
           </div>
-          <div className="text-[10px] font-bold tracking-widest uppercase">
+          <div className="text-[10px] font-bold tracking-widest uppercase bg-[#070a0e] px-3 py-1 rounded-md border border-[rgba(255,255,255,0.1)]">
             {isSentinelAlert ? 'ALERT: REPLAN ACTIVE' : isAuthorized ? 'SENTINEL ACTIVE' : 'SENTINEL IDLE'}
           </div>
         </motion.section>
 
         {/* Scenario Controls & Action Rail */}
-        <section className="flex flex-wrap items-center justify-between gap-4 border-y border-[#242a2e] py-3">
-          <div className="action-rail flex items-center gap-2 flex-wrap">
+        <section className="flex flex-wrap items-center justify-between gap-4 border-y border-[rgba(255,255,255,0.1)] py-4">
+          <div className="action-rail flex items-center gap-3 flex-wrap">
             <button
               onClick={handleStartAutonomousMission}
               disabled={isReplanning}
-              className="px-4 py-2 bg-[#2ecc71] text-[#0a0d0f] font-bold rounded text-xs hover:bg-[#27ae60] transition-colors flex items-center gap-2 disabled:opacity-50"
+              className="px-4 py-2.5 bg-[#30d158] text-[#070a0e] font-bold rounded-lg text-xs hover:bg-[#28c04d] transition-all flex items-center gap-2 disabled:opacity-50 shadow-md cursor-pointer"
             >
-              <Play className={`w-3.5 h-3.5 ${isReplanning ? 'animate-spin' : ''}`} />
+              <Play className={`w-4 h-4 ${isReplanning ? 'animate-spin' : ''}`} />
               {isReplanning ? 'AUTONOMOUS LOOP ACTIVE...' : 'START AUTONOMOUS MISSION'}
             </button>
 
             <button
               onClick={() => handleInject('bridge_fails')}
-              className="px-3.5 py-2 bg-[#14181a] border border-[#242a2e] hover:border-[#e74c3c] text-[#e8edf2] rounded text-xs flex items-center gap-1.5 transition-colors"
+              className="px-4 py-2.5 bg-[#0d1418] border border-[rgba(255,255,255,0.12)] hover:border-[#ff453a] text-[#f5f7fa] rounded-lg text-xs flex items-center gap-2 transition-all cursor-pointer hover:bg-[#ff453a]/10"
             >
-              <PlusCircle className="w-3.5 h-3.5 text-[#e74c3c]" /> INJECT B-07 COLLAPSE (EVENT 1)
+              <PlusCircle className="w-4 h-4 text-[#ff453a]" /> INJECT B-07 COLLAPSE (EVENT 1)
             </button>
 
             <button
-              onClick={() => handleInject('vehicle_lost')}
-              className="px-3.5 py-2 bg-[#14181a] border border-[#242a2e] hover:border-[#e74c3c] text-[#e8edf2] rounded text-xs flex items-center gap-1.5 transition-colors"
+              onClick={() => handleInject('weather_escalates')}
+              className="px-4 py-2.5 bg-[#0d1418] border border-[rgba(255,255,255,0.12)] hover:border-[#ff9f0a] text-[#f5f7fa] rounded-lg text-xs flex items-center gap-2 transition-all cursor-pointer hover:bg-[#ff9f0a]/10"
             >
-              <ShieldAlert className="w-3.5 h-3.5 text-[#e74c3c]" /> INJECT SECOND FAILURE (EVENT 2)
+              <ShieldAlert className="w-4 h-4 text-[#ff9f0a]" /> INJECT SECOND FAILURE (EVENT 2)
             </button>
 
             <button
-              onClick={() => handleInject('bridge_conflict')}
-              className="px-3.5 py-2 bg-[#14181a] border border-[#242a2e] hover:border-[#f39c12] text-[#e8edf2] rounded text-xs flex items-center gap-1.5 transition-colors"
+              onClick={() => handleInject('conflict_occurs')}
+              className="px-4 py-2.5 bg-[#0d1418] border border-[rgba(255,255,255,0.12)] hover:border-[#ffab00] text-[#f5f7fa] rounded-lg text-xs flex items-center gap-2 transition-all cursor-pointer hover:bg-[#ffab00]/10"
             >
-              <AlertTriangle className="w-3.5 h-3.5 text-[#f39c12]" /> SATELLITE CONFLICT
+              <AlertTriangle className="w-4 h-4 text-[#ffab00]" /> SATELLITE CONFLICT
             </button>
 
-            <button onClick={handleRunCounterfactuals} className="px-3.5 py-2 bg-[#14181a] border border-[#242a2e] hover:border-[#3498db] text-[#e8edf2] rounded text-xs flex items-center gap-1.5 transition-colors">
-              <GitBranch className="w-3.5 h-3.5 text-[#3498db]" /> RUN COUNTERFACTUALS
+            <button
+              onClick={handleRunCounterfactuals}
+              className="px-4 py-2.5 bg-[#0d1418] border border-[rgba(255,255,255,0.12)] hover:border-[#0a84ff] text-[#f5f7fa] rounded-lg text-xs flex items-center gap-2 transition-all cursor-pointer hover:bg-[#0a84ff]/10"
+            >
+              <GitBranch className="w-4 h-4 text-[#0a84ff]" /> RUN COUNTERFACTUALS
             </button>
 
-            <button onClick={handleChallengePlan} className="px-3.5 py-2 bg-[#14181a] border border-[#242a2e] hover:border-[#f39c12] text-[#e8edf2] rounded text-xs flex items-center gap-1.5 transition-colors">
-              <ShieldAlert className="w-3.5 h-3.5 text-[#f39c12]" /> CHALLENGE PLAN
+            <button
+              onClick={handleChallengePlan}
+              className="px-4 py-2.5 bg-[#0d1418] border border-[rgba(255,255,255,0.12)] hover:border-[#ff9f0a] text-[#f5f7fa] rounded-lg text-xs flex items-center gap-2 transition-all cursor-pointer hover:bg-[#ff9f0a]/10"
+            >
+              <ShieldAlert className="w-4 h-4 text-[#ff9f0a]" /> CHALLENGE PLAN
             </button>
 
-            <button onClick={handleReset} className="px-3 py-2 bg-[#1e2428] text-[#8a9aaa] hover:text-[#e8edf2] rounded text-xs flex items-center gap-1 transition-colors">
-              <RotateCcw className="w-3 h-3" /> RESET MISSION
+            <button
+              onClick={handleReset}
+              className="px-4 py-2.5 bg-[#0d1418] border border-[rgba(255,255,255,0.12)] hover:border-[#a0b2c6] text-[#a0b2c6] hover:text-[#f5f7fa] rounded-lg text-xs flex items-center gap-2 transition-all cursor-pointer"
+            >
+              <RotateCcw className="w-4 h-4" /> RESET MISSION
             </button>
           </div>
 
           {/* Mission Policy Selector */}
-          <div className="flex items-center gap-2 font-mono text-xs">
-            <span className="text-[#5a6a7a] uppercase">POLICY:</span>
-            <div className="bg-[#14181a] p-0.5 rounded border border-[#242a2e] flex gap-1">
+          <div className="flex items-center gap-2 font-mono text-xs bg-[#0d1418] border border-[rgba(255,255,255,0.12)] px-3 py-1.5 rounded-lg backdrop-blur-md">
+            <span className="text-[#a0b2c6] font-bold uppercase tracking-wider text-[10px]">POLICY MODE:</span>
+            <div className="bg-[#070a0e] p-0.5 rounded-md border border-[rgba(255,255,255,0.1)] flex gap-1">
               {['SAFE', 'BALANCED', 'URGENT'].map((policyOption) => (
                 <button
                   key={policyOption}
                   onClick={() => handlePolicyChange(policyOption)}
-                  className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase transition-all ${
+                  className={`px-3 py-1 rounded text-[10px] font-bold uppercase transition-all cursor-pointer ${
                     state.policy === policyOption
-                      ? 'bg-[#3498db]/20 text-[#3498db] border border-[#3498db]/40'
-                      : 'text-[#8a9aaa] hover:text-[#e8edf2]'
+                      ? 'bg-[#0a84ff] text-[#070a0e] shadow-sm font-extrabold'
+                      : 'text-[#a0b2c6] hover:text-[#f5f7fa] hover:bg-white/5'
                   }`}
                 >
                   {policyOption}
