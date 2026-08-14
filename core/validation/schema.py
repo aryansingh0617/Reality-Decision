@@ -9,16 +9,13 @@ from typing import Any
 from core.state.entity_status import ConfidenceClass
 
 VALID_ENTITIES = {
-    "bridge_07",
-    "route_alpha",
-    "route_bravo",
-    "route_charlie",
-    "vehicle_12",
-    "vehicle_08",
-    "vehicle_15",
-    "hospital_north",
-    "shelter_a",
-    "shelter_b",
+    "bridge_b07",
+    "route_r12",
+    "route_r14",
+    "depot_d03",
+    "depot_d04",
+    "shelter_s04",
+    "vehicle_v01",
     "gps_network",
 }
 

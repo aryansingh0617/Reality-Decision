@@ -115,6 +115,11 @@ class DecisionPacket:
     provenance: list[str] = field(default_factory=list)
     assumptions: list[str] = field(default_factory=list)
     simulation_summary: dict = field(default_factory=dict)
+    previous_plan: str = ""
+    cause_of_change: str = ""
+    missing_information: str = ""
+    counterfactual_branches: list[dict] = field(default_factory=list)
+    causal_trace: list[dict] = field(default_factory=list)
 
 
 @dataclass
@@ -141,6 +146,7 @@ class RealityState:
 
     current_packet: DecisionPacket | None = None
     agent_activity: list[dict] = field(default_factory=list)
+    agent_steps: list[dict] = field(default_factory=list)
     audit_trail: list[AuditRecord] = field(default_factory=list)
 
     replan_count: int = 0

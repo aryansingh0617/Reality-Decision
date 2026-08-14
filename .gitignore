@@ -41,3 +41,7 @@ Thumbs.db
 htmlcov/
 .pytest_cache/
 .mypy_cache/
+
+# Local backups & scratch scripts
+backup/
+scratch/

@@ -80,9 +80,9 @@ class RiskEngine:
             st = state.get_entity_status(dep)
             if st in (EntityStatus.UNAVAILABLE, EntityStatus.CONFLICTING, EntityStatus.UNKNOWN):
                 blocked.append(dep)
-            elif dep == "bridge_07" and st == EntityStatus.UNCERTAIN:
+            elif dep == "bridge_b07" and st == EntityStatus.UNCERTAIN:
                 blocked.append(f"{dep} (uncertain)")
-        if not state.gps_available and route.id == "route_alpha":
+        if not state.gps_available and route.id == "route_r12":
             blocked.append("gps_network")
         return blocked
 

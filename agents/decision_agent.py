@@ -32,6 +32,78 @@ class DecisionAgent:
         )
 
         confirmed, unknown, _ = state.available_vehicle_capacity()
+        
+        from agents.llm_client import is_llm_mode_active, call_openai_json
+        
+        if is_llm_mode_active():
+            routes_desc = []
+            for rid, r in state.routes.items():
+                r_risk = risk.routes.get(rid)
+                blocked_str = ", ".join(r_risk.blocked_by) if r_risk else ""
+                routes_desc.append(
+                    f"- Route: {r.name} ({rid})\n"
+                    f"  Status: {r.status.value}\n"
+                    f"  ETA: {r.eta_minutes} min (with delay: {r_risk.delay_min if r_risk else r.eta_minutes} min)\n"
+                    f"  Failure Risk: {r.failure_risk}\n"
+                    f"  Operational: {r.operational}\n"
+                    f"  Depends on: {', '.join(r.depends_on)}\n"
+                    f"  Blocked by: {blocked_str or 'none'}"
+                )
+            routes_context = "\n".join(routes_desc)
+            
+            system_prompt = (
+                "You are a Decision Agent for an emergency command center.\n"
+                "Evaluate the situation, compare route risks under the current policy, and generate a structured decision.\n"
+                "Return a JSON object conforming exactly to this schema:\n"
+                "{\n"
+                "  \"recommendation\": \"string\" (e.g. 'ROUTE R-12 — FAST CORRIDOR' or 'HALT — NO VIABLE ROUTES' or 'CAPACITY GAP — EXTERNAL ESCALATION REQUIRED'),\n"
+                "  \"route_id\": \"route_r12\" | \"route_r14\" | null,\n"
+                "  \"why\": [\"string\"] (bullet points explaining the choice),\n"
+                "  \"known\": [\"string\"] (key facts known to the system),\n"
+                "  \"unknown\": [\"string\"] (critical unknowns),\n"
+                "  \"critical_assumption\": \"string\" (the single most critical assumption),\n"
+                "  \"consequence_if_wrong\": \"string\" (impact if this assumption is false),\n"
+                "  \"alternative\": \"string\" (backup action),\n"
+                "  \"verification\": \"string\" (verification recommended),\n"
+                "  \"confidence\": \"HIGH\" | \"MEDIUM\" | \"LOW\",\n"
+                "  \"capacity_gap\": bool,\n"
+                "  \"escalation_required\": bool,\n"
+                "  \"assumptions\": [\"string\"]\n"
+                "}\n"
+                "CRITICAL:\n"
+                "- Ground logic strictly in provided routes and vehicles. NEVER invent routes, depots, or resources.\n"
+                "- If confirmed capacity is 0, you MUST select CAPACITY GAP recommendation and set capacity_gap=true, escalation_required=true."
+            )
+            
+            user_prompt = (
+                f"Mission: {state.mission}\n"
+                f"Policy Mode: {state.policy.value}\n"
+                f"Decision Horizon: {state.decision_horizon_min} min\n"
+                f"Confirmed Vehicle Capacity: {confirmed} slots\n"
+                f"Verification Note: {verification_note}\n"
+                f"Policy Change Reason: {policy_change_reason}\n\n"
+                f"Routes:\n{routes_context}\n\n"
+                f"Current Unknowns:\n" + "\n".join(f"- {u}" for u in state.unknowns)
+            )
+            
+            data = call_openai_json(system_prompt, user_prompt)
+            if data:
+                packet.recommendation = data.get("recommendation", "")
+                packet.route_id = data.get("route_id")
+                packet.why = data.get("why", [])
+                packet.known = data.get("known", [])
+                packet.unknown = data.get("unknown", [])
+                packet.critical_assumption = data.get("critical_assumption", "")
+                packet.consequence_if_wrong = data.get("consequence_if_wrong", "")
+                packet.alternative = data.get("alternative", "")
+                packet.verification = data.get("verification", "")
+                packet.confidence = ConfidenceClass(data.get("confidence", "MEDIUM"))
+                packet.capacity_gap = data.get("capacity_gap", False)
+                packet.escalation_required = data.get("escalation_required", False)
+                packet.assumptions = data.get("assumptions", [])
+                packet.provenance = ["DecisionAgent (LLM Mode)", f"Policy:{state.policy.value}"]
+                return packet
+
         if risk.capacity_gap or confirmed == 0:
             return cls._capacity_gap_packet(state, packet, confirmed, unknown)
 

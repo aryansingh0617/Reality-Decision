@@ -7,82 +7,93 @@ from datetime import datetime
 from core.dependencies.dependency_graph import build_default_graph
 from core.evidence.evidence_store import EvidenceStore
 from core.state.entity_status import ConfidenceClass, EntityStatus
-from core.state.reality_state import Hospital, MissionPolicy, RealityState, Route, Shelter, Vehicle, Weather
+from core.state.reality_state import Hospital, MissionPolicy, RealityState, Route, Shelter, Vehicle, Weather, EntityFact
 
-HQ = {"lat": 45.5152, "lon": -122.6784}
-BRIDGE = {"lat": 45.5178, "lon": -122.6715}
-HOSPITAL = {"lat": 45.5285, "lon": -122.6550}
-SHELTER_A = {"lat": 45.5080, "lon": -122.6620}
-SHELTER_B = {"lat": 45.5220, "lon": -122.6480}
+HQ = {"lat": 26.1445, "lon": 91.7362}
+BRIDGE_B07 = {"lat": 26.1900, "lon": 91.7450}
+DEPOT_D03 = {"lat": 26.2200, "lon": 91.7600}
+DEPOT_D04 = {"lat": 26.1700, "lon": 91.6800}
+SHELTER_S04 = {"lat": 26.2500, "lon": 91.7200}
 
-ROUTE_A_COORDS = [
-    [HQ["lat"], HQ["lon"]], [45.5165, -122.6750], [BRIDGE["lat"], BRIDGE["lon"]],
-    [45.5240, -122.6600], [HOSPITAL["lat"], HOSPITAL["lon"]],
+ROUTE_R12_COORDS = [
+    [HQ["lat"], HQ["lon"]], [BRIDGE_B07["lat"], BRIDGE_B07["lon"]], [DEPOT_D03["lat"], DEPOT_D03["lon"]],
 ]
-ROUTE_B_COORDS = [
-    [HQ["lat"], HQ["lon"]], [45.5120, -122.6850], [45.5100, -122.6700],
-    [SHELTER_A["lat"], SHELTER_A["lon"]], [45.5150, -122.6550],
-    [SHELTER_B["lat"], SHELTER_B["lon"]], [HOSPITAL["lat"], HOSPITAL["lon"]],
-]
-ROUTE_C_COORDS = [
-    [HQ["lat"], HQ["lon"]], [45.5180, -122.6800], [BRIDGE["lat"], BRIDGE["lon"]],
-    [45.5260, -122.6580], [HOSPITAL["lat"], HOSPITAL["lon"]],
+ROUTE_R14_COORDS = [
+    [HQ["lat"], HQ["lon"]], [DEPOT_D04["lat"], DEPOT_D04["lon"]], [SHELTER_S04["lat"], SHELTER_S04["lon"]],
 ]
 
 
 def create_initial_world() -> tuple[RealityState, EvidenceStore]:
     state = RealityState(
-        mission="Medical evacuation",
+        mission="Assam Flood Evacuation",
         policy=MissionPolicy.BALANCED,
-        decision_horizon_min=5,
-        decision_window_min=5,
-        verification_latency_min=3.0,
-        weather=Weather.CLEAR,
+        decision_horizon_min=10,
+        decision_window_min=15,
+        verification_latency_min=5.0,
+        weather=Weather.RAIN,
         gps_available=True,
-        mission_start=datetime(2026, 8, 12, 9, 40, 0),
+        mission_start=datetime(2026, 8, 13, 9, 0, 0),
         unknowns=[
-            "Bridge 07 structural integrity under sustained load",
-            "Secondary aftershock probability in next 20 min",
+            "Bridge B-07 structural load rating under high water flow",
+            "Alternative bypass corridor accessibility for light trucks",
         ],
         assumptions=[
-            "Forward scout reports accurate within 5-minute window",
-            "Light vehicles can traverse Route Bravo detour",
+            "Field scouts have operational radio contact",
+            "B-07 remains crossable by heavy trucks under normal rainfall",
         ],
     )
 
     state.routes = {
-        "route_alpha": Route(
-            id="route_alpha", name="ROUTE ALPHA", label="FAST & DIRECT",
-            coords=ROUTE_A_COORDS, status=EntityStatus.KNOWN, confidence=ConfidenceClass.MEDIUM,
-            people_capacity=20, eta_minutes=18, failure_risk="MEDIUM", depends_on=["bridge_07"],
+        "route_r12": Route(
+            id="route_r12", name="ROUTE R-12", label="FAST CORRIDOR",
+            coords=ROUTE_R12_COORDS, status=EntityStatus.KNOWN, confidence=ConfidenceClass.MEDIUM,
+            people_capacity=20, eta_minutes=15, failure_risk="LOW", depends_on=["bridge_b07"],
         ),
-        "route_bravo": Route(
-            id="route_bravo", name="ROUTE BRAVO", label="SAFE DETOUR",
-            coords=ROUTE_B_COORDS, status=EntityStatus.KNOWN, confidence=ConfidenceClass.HIGH,
-            people_capacity=14, eta_minutes=32, failure_risk="LOW", depends_on=["shelter_a", "shelter_b"],
-        ),
-        "route_charlie": Route(
-            id="route_charlie", name="ROUTE CHARLIE", label="ALTERNATE",
-            coords=ROUTE_C_COORDS, status=EntityStatus.KNOWN, confidence=ConfidenceClass.MEDIUM,
-            people_capacity=12, eta_minutes=28, failure_risk="MEDIUM", depends_on=["bridge_07"],
+        "route_r14": Route(
+            id="route_r14", name="ROUTE R-14", label="SAFE BYPASS DETOUR",
+            coords=ROUTE_R14_COORDS, status=EntityStatus.KNOWN, confidence=ConfidenceClass.HIGH,
+            people_capacity=15, eta_minutes=35, failure_risk="LOW", depends_on=[],
         ),
     }
 
     state.vehicles = {
-        "vehicle_12": Vehicle(id="vehicle_12", name="Ambulance 12", capacity=4, available=True),
-        "vehicle_08": Vehicle(id="vehicle_08", name="Ambulance 08", capacity=4, available=True),
-        "vehicle_15": Vehicle(id="vehicle_15", name="Transport 15", capacity=6, available=True),
+        "vehicle_v02": Vehicle(id="vehicle_v02", name="Rescue Truck V-02", capacity=10, available=True),
     }
 
     state.shelters = {
-        "shelter_a": Shelter(id="shelter_a", name="Riverside Shelter", capacity=50, occupied=30),
-        "shelter_b": Shelter(id="shelter_b", name="Eastside Triage", capacity=40, occupied=20),
+        "shelter_s04": Shelter(id="shelter_s04", name="Shelter S-04", capacity=50, occupied=25),
     }
 
     state.hospitals = {
-        "hospital_north": Hospital(
-            id="hospital_north", name="St. Vincent Field Hospital",
-            surge_capacity=60, current_load=35, access_routes=["route_alpha", "route_bravo"],
+        "depot_d03": Hospital(
+            id="depot_d03", name="Depot D-03 Logistics Hub",
+            surge_capacity=40, current_load=15, access_routes=["route_r12"],
+        ),
+        "depot_d04": Hospital(
+            id="depot_d04", name="Depot D-04 Alternate Hub",
+            surge_capacity=30, current_load=5, access_routes=["route_r14"],
+        ),
+    }
+    state.entities = {
+        "bridge_b07": EntityFact(
+            entity_id="bridge_b07", attribute="access", value="operational",
+            status=EntityStatus.KNOWN, source="initial_scout", timestamp=state.now(),
+        ),
+        "depot_d03": EntityFact(
+            entity_id="depot_d03", attribute="access", value="operational",
+            status=EntityStatus.KNOWN, source="initial_scout", timestamp=state.now(),
+        ),
+        "depot_d04": EntityFact(
+            entity_id="depot_d04", attribute="access", value="operational",
+            status=EntityStatus.KNOWN, source="initial_scout", timestamp=state.now(),
+        ),
+        "shelter_s04": EntityFact(
+            entity_id="shelter_s04", attribute="access", value="operational",
+            status=EntityStatus.KNOWN, source="initial_scout", timestamp=state.now(),
+        ),
+        "vehicle_v02": EntityFact(
+            entity_id="vehicle_v02", attribute="availability", value="available",
+            status=EntityStatus.KNOWN, source="dispatch_center", timestamp=state.now(),
         ),
     }
 
@@ -93,27 +104,27 @@ DEMO_EVENTS = {
     "bridge_fails": {
         "id": "evt_bridge_fail",
         "type": "raw_report",
-        "label": "BRIDGE 07 ACCESS FAILURE",
-        "text": "Bridge 7 appears completely submerged. Truck drivers report heavy vehicles cannot cross.",
-        "source": "field_report_17",
+        "label": "BRIDGE B-07 FAILURE",
+        "text": "Bridge B-07 appears completely submerged. Local flood team reports heavy vehicles cannot cross and route is blocked.",
+        "source": "field_scout_02",
     },
     "bridge_conflict": {
         "id": "evt_bridge_conflict",
         "type": "structured_evidence",
-        "label": "BRIDGE STATUS CONFLICT",
+        "label": "SATELLITE CONTRADICTION",
         "data": {
-            "entity": "bridge_07", "event": "operational", "status": "operational",
+            "entity": "bridge_b07", "event": "operational", "status": "operational",
             "source": "satellite_imagery", "confidence_class": "MEDIUM",
         },
-        "text": "Satellite evidence says bridge appears intact.",
+        "text": "High-res satellite pass shows Bridge B-07 structurally intact with light vehicles crossing.",
     },
     "vehicle_lost": {
         "id": "evt_vehicle_lost",
         "type": "entity_status",
-        "label": "VEHICLE 12 UNAVAILABLE",
-        "entity": "vehicle_12",
+        "label": "VEHICLE LOST",
+        "entity": "vehicle_v02",
         "status": "UNAVAILABLE",
-        "reason": "Mechanical failure reported",
+        "reason": "Rescue Truck V-02 engine flooded during transit",
     },
     "weather_worsens": {
         "id": "evt_weather",
@@ -126,10 +137,10 @@ DEMO_EVENTS = {
     "shelter_collapse": {
         "id": "evt_shelter",
         "type": "entity_status",
-        "label": "SHELTER CAPACITY COLLAPSE",
-        "entity": "shelter_a",
+        "label": "SHELTER EVACUATED",
+        "entity": "shelter_s04",
         "status": "UNAVAILABLE",
-        "reason": "Capacity reduction",
+        "reason": "Severe flooding at Shelter S-04, immediate evacuation required",
     },
     "gps_fails": {
         "id": "evt_gps",
@@ -137,27 +148,20 @@ DEMO_EVENTS = {
         "label": "GPS OUTAGE",
         "entity": "gps_network",
         "status": "UNAVAILABLE",
-        "reason": "GPS telemetry offline",
+        "reason": "GPS telemetry offline due to atmospheric noise",
     },
     "verification_slow": {
         "id": "evt_verify_slow",
         "type": "verification_config",
-        "label": "VERIFICATION TOO SLOW",
-        "latency_min": 6.0,
-        "window_min": 4.0,
+        "label": "VERIFICATION SLOWS",
+        "latency_min": 25.0,
+        "window_min": 15.0,
     },
     "policy_urgent": {
         "id": "evt_policy",
         "type": "policy_change",
         "label": "POLICY → URGENT",
         "policy": "URGENT",
-    },
-    "traffic_sensor": {
-        "id": "evt_traffic",
-        "type": "raw_report",
-        "label": "TRAFFIC SENSOR",
-        "text": "Traffic sensor: no vehicles detected on Bridge 07.",
-        "source": "traffic_sensor",
     },
 }
 

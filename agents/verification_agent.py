@@ -31,11 +31,11 @@ class VerificationAgent:
     """
 
     IMPACT_MAP = {
-        "bridge_07": 0.95,
-        "route_alpha": 0.85,
-        "vehicle_12": 0.7,
+        "bridge_b07": 0.95,
+        "route_r12": 0.85,
+        "vehicle_v01": 0.7,
         "gps_network": 0.6,
-        "shelter_a": 0.5,
+        "shelter_s04": 0.5,
     }
 
     @classmethod
@@ -48,8 +48,9 @@ class VerificationAgent:
     ) -> list[UnknownPriority]:
         verification_latency_min = verification_latency_min or state.verification_latency_min
         decision_window = state.decision_window_min
-        results: list[UnknownPriority] = []
-
+        
+        from agents.llm_client import is_llm_mode_active, call_openai_json
+        
         candidates = set(state.unknowns)
         for entity in state.entities:
             if state.get_entity_status(entity) in (EntityStatus.UNKNOWN, EntityStatus.CONFLICTING, EntityStatus.UNCERTAIN):
@@ -57,6 +58,72 @@ class VerificationAgent:
         for item in store.items:
             if item.status in ("unknown", "conflicting", "uncertain"):
                 candidates.add(item.entity)
+                
+        if is_llm_mode_active() and candidates:
+            # Format candidate entities and downstream impacts
+            candidates_info = []
+            for entity in candidates:
+                downstream = graph.get_downstream(entity)
+                candidates_info.append(
+                    f"- Entity: {entity}\n"
+                    f"  Status: {state.get_entity_status(entity).value}\n"
+                    f"  Downstream impacts: {', '.join(downstream) or 'none'}"
+                )
+            candidates_text = "\n".join(candidates_info)
+            
+            system_prompt = (
+                "You are a Verification Prioritization Agent for emergency response.\n"
+                "Your role is to identify which unresolved assumptions/entities are worth verifying.\n"
+                "You MUST evaluate verification latency versus decision urgency.\n"
+                "Provide a JSON object with this structure:\n"
+                "{\n"
+                "  \"ranked_unknowns\": [\n"
+                "    {\n"
+                "      \"entity\": \"string\",\n"
+                "      \"description\": \"string\",\n"
+                "      \"decision_impact\": float (0.0 to 1.0),\n"
+                "      \"uncertainty\": float (0.0 to 1.0),\n"
+                "      \"time_criticality\": float (0.0 to 1.0),\n"
+                "      \"downstream_count\": int,\n"
+                "      \"verification_time_min\": float,\n"
+                "      \"priority_score\": float (0.0 to 1.0, higher means more critical to verify),\n"
+                "      \"recommendation\": \"VERIFY\" | \"PROCEED_UNDER_UNCERTAINTY\"\n"
+                "    }\n"
+                "  ]\n"
+                "}\n"
+                "CRITICAL: If verification latency > decision window, you MUST recommend PROCEED_UNDER_UNCERTAINTY.\n"
+                "Do NOT invent entities."
+            )
+            
+            user_prompt = (
+                f"Operational Context:\n"
+                f"- Decision Window: {decision_window} min\n"
+                f"- Verification Latency: {verification_latency_min} min\n\n"
+                f"Candidate Entities for Verification:\n{candidates_text}"
+            )
+            
+            data = call_openai_json(system_prompt, user_prompt)
+            if data and "ranked_unknowns" in data:
+                results = []
+                for x in data["ranked_unknowns"]:
+                    results.append(
+                        UnknownPriority(
+                            entity=x["entity"],
+                            description=x["description"],
+                            decision_impact=x["decision_impact"],
+                            uncertainty=x["uncertainty"],
+                            time_criticality=x["time_criticality"],
+                            downstream_count=x["downstream_count"],
+                            verification_time_min=x["verification_time_min"],
+                            priority_score=round(x["priority_score"], 3),
+                            recommendation=x["recommendation"],
+                        )
+                    )
+                results.sort(key=lambda x: x.priority_score, reverse=True)
+                return results
+
+        # Fallback deterministic prioritization
+        results: list[UnknownPriority] = []
 
         for entity in candidates:
             impact = cls.IMPACT_MAP.get(entity, 0.5)

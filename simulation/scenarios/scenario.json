@@ -1,0 +1,105 @@
+{
+  "mission": {
+    "name": "Assam Flood Response & Evacuation",
+    "objective": "Evacuate high-risk shelter S-04 and transport emergency supplies",
+    "demand": 25,
+    "decision_window_minutes": 15,
+    "verification_latency_minutes": 5.0,
+    "policy": "BALANCED"
+  },
+  "entities": {
+    "orbit_relay": {
+      "id": "orbit_relay",
+      "name": "Orbit Relay",
+      "type": "satellite",
+      "status": "KNOWN",
+      "confidence": "HIGH",
+      "depends_on": []
+    },
+    "north_relay": {
+      "id": "north_relay",
+      "name": "North Relay",
+      "type": "comms",
+      "status": "KNOWN",
+      "confidence": "HIGH",
+      "depends_on": []
+    },
+    "bridge_b07": {
+      "id": "bridge_b07",
+      "name": "Bridge B-07",
+      "type": "infrastructure",
+      "status": "KNOWN",
+      "confidence": "HIGH",
+      "depends_on": ["north_relay"]
+    },
+    "south_depot": {
+      "id": "south_depot",
+      "name": "South Depot",
+      "type": "depot",
+      "status": "KNOWN",
+      "confidence": "HIGH",
+      "depends_on": []
+    },
+    "route_r12": {
+      "id": "route_r12",
+      "name": "ROUTE R-12",
+      "label": "FAST CORRIDOR",
+      "type": "route",
+      "status": "KNOWN",
+      "confidence": "MEDIUM",
+      "people_capacity": 20,
+      "eta_minutes": 15,
+      "failure_risk": "LOW",
+      "depends_on": ["bridge_b07"]
+    },
+    "route_r14": {
+      "id": "route_r14",
+      "name": "ROUTE R-14",
+      "label": "SAFE BYPASS DETOUR",
+      "type": "route",
+      "status": "KNOWN",
+      "confidence": "HIGH",
+      "people_capacity": 15,
+      "eta_minutes": 35,
+      "failure_risk": "LOW",
+      "depends_on": []
+    },
+    "depot_d03": {
+      "id": "depot_d03",
+      "name": "Depot D-03 Logistics Hub",
+      "type": "depot",
+      "status": "KNOWN",
+      "surge_capacity": 40,
+      "current_load": 15,
+      "access_routes": ["route_r12"],
+      "depends_on": ["route_r12"]
+    },
+    "depot_d04": {
+      "id": "depot_d04",
+      "name": "Depot D-04 Alternate Hub",
+      "type": "depot",
+      "status": "KNOWN",
+      "surge_capacity": 30,
+      "current_load": 5,
+      "access_routes": ["route_r14"],
+      "depends_on": ["route_r14"]
+    },
+    "shelter_s04": {
+      "id": "shelter_s04",
+      "name": "Shelter S-04",
+      "type": "shelter",
+      "status": "KNOWN",
+      "capacity": 50,
+      "occupied": 25,
+      "depends_on": ["depot_d03"]
+    },
+    "vehicle_v02": {
+      "id": "vehicle_v02",
+      "name": "Rescue Truck V-02",
+      "type": "vehicle",
+      "capacity": 25,
+      "available": true,
+      "depends_on": ["south_depot"]
+    }
+  }
+}

@@ -22,6 +22,45 @@ class DependencyAgent:
         changed_entity: str,
         new_status: EntityStatus,
     ) -> dict:
+        from agents.llm_client import is_llm_mode_active, call_openai_json
+        
+        if is_llm_mode_active():
+            # Build text representation of graph nodes & connections for LLM context
+            nodes_desc = []
+            for nid, node in graph.nodes.items():
+                nodes_desc.append(f"- {nid} ({node.node_type}) impacts: {', '.join(node.impacts) or 'none'}")
+            graph_context = "\n".join(nodes_desc)
+            
+            system_prompt = (
+                "You are a Dependency Propagation Agent for emergency response.\n"
+                "Your role is to trace how a status change propagates through a dependency graph.\n"
+                "You MUST return a JSON object with this exact structure:\n"
+                "{\n"
+                "  \"source\": \"string\" (the changed entity ID),\n"
+                "  \"new_status\": \"string\" (the new status, e.g. 'UNAVAILABLE'),\n"
+                "  \"direct_impacts\": [\"string\"] (directly connected downstream nodes),\n"
+                "  \"downstream_impacts\": [\"string\"] (indirectly connected downstream nodes),\n"
+                "  \"affected_routes\": [\"string\"] (downstream route entity IDs affected),\n"
+                "  \"affected_hospitals\": [\"string\"] (downstream depot/hospital entity IDs affected),\n"
+                "  \"total_affected\": int,\n"
+                "  \"updates\": [\n"
+                "    {\"entity\": \"string\", \"type\": \"route\"|\"hospital\"|\"shelter\", \"impact\": \"string\"}\n"
+                "  ]\n"
+                "}\n"
+                "CRITICAL: Do NOT invent entities. Only propagate to downstream nodes in the graph."
+            )
+            
+            user_prompt = (
+                f"Dependency Graph Definitions:\n{graph_context}\n\n"
+                f"Trigger Event: Entity '{changed_entity}' changed status to '{new_status.value}'.\n"
+                f"Reason about the cascade and output the downstream impacts."
+            )
+            
+            data = call_openai_json(system_prompt, user_prompt)
+            if data and "updates" in data:
+                return data
+
+        # Fallback deterministic propagation
         cascade = graph.cascade_summary(changed_entity)
         affected_routes: list[str] = []
         affected_hospitals: list[str] = []
@@ -34,7 +73,7 @@ class DependencyAgent:
             if node.node_type == "route":
                 affected_routes.append(node_id)
                 updates.append({"entity": node_id, "type": "route", "impact": new_status.value})
-            elif node.node_type == "hospital":
+            elif node.node_type in ("hospital", "depot"):
                 affected_hospitals.append(node_id)
                 updates.append({"entity": node_id, "type": "hospital", "impact": "access_reduced"})
 

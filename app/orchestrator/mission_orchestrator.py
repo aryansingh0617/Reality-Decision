@@ -1,7 +1,9 @@
-"""Mission Orchestrator — adaptive reasoning loop."""
+"""Mission Orchestrator — adaptive reasoning loop with Continuous Sentinel and Escalation Agent."""
 
 from __future__ import annotations
-
+import os
+import json
+import time
 from enum import Enum
 
 from agents.decision_agent import DecisionAgent
@@ -9,6 +11,9 @@ from agents.dependency_agent import DependencyAgent
 from agents.evidence_agent import EvidenceAgent
 from agents.simulation_agent import SimulationAgent
 from agents.verification_agent import VerificationAgent
+from agents.critic_agent import CriticAgent
+from agents.escalation_agent import EscalationAgent
+from agents.information_agent import InformationValueAgent
 from core.dependencies.dependency_graph import DependencyGraph
 from core.evidence.conflict_engine import ConflictEngine
 from core.evidence.evidence_store import EvidenceStore
@@ -18,7 +23,7 @@ from core.state.reality_state import EntityFact, MissionPolicy, RealityState, We
 
 
 class OrchestratorAction(str, Enum):
-    INGEST_EVIDENCE = "INGEST_EEvidence"
+    INGEST_EVIDENCE = "INGEST_EVIDENCE"
     VERIFY = "VERIFY"
     PROPAGATE = "PROPAGATE"
     ASSESS_RISK = "ASSESS_RISK"
@@ -31,6 +36,7 @@ class OrchestratorAction(str, Enum):
 class MissionOrchestrator:
     """
     STATE → ASSESS → DETERMINE REQUIRED REASONING → ACT → REASSESS
+    Integrates Continuous Sentinel & Escalation Agent.
     """
 
     def __init__(self, state: RealityState, graph: DependencyGraph, store: EvidenceStore) -> None:
@@ -40,6 +46,7 @@ class MissionOrchestrator:
         self.evidence_agent = EvidenceAgent(store)
         self._policy_change_reason = ""
         self._processed_event_ids: set[str] = set()
+        self.sentinel_status = "MONITORING"  # MONITORING | PLAN_AT_RISK | REPLANNING
 
     def log(self, actor: str, message: str) -> None:
         self.state.log_activity(actor, message)
@@ -51,6 +58,12 @@ class MissionOrchestrator:
         new_events = [e for e in events if e.get("id") not in self._processed_event_ids]
         if not new_events:
             return self.state
+
+        # Continuous Sentinel check: Was an authorized plan invalidated?
+        if self.state.current_packet and self.state.current_packet.authorization_status == "AUTHORIZED":
+            self.sentinel_status = "PLAN_AT_RISK"
+            self.log("CONTINUOUS SENTINEL", "⚠ AUTHORIZED PLAN AT RISK: Post-authorization event detected! Restarting autonomous replanning cycle...")
+            self.state.log_audit("SENTINEL_TRIGGERED", "CONTINUOUS SENTINEL", "Post-authorization reality change invalidated current plan")
 
         if len(new_events) > 1:
             labels = [e.get("label", e.get("type", "event")) for e in new_events]
@@ -92,30 +105,30 @@ class MissionOrchestrator:
             self._apply_entity_status(event["entity"], EntityStatus(event["status"]), event.get("reason", ""))
 
     def _apply_evidence_impact(self, item) -> None:
-        """Map validated evidence to entity status — orchestrator applies, not LLM."""
-        if item.entity == "bridge_07":
+        """Map validated evidence to entity status."""
+        if item.entity == "bridge_b07":
             if item.event in ("access_restriction", "collapse", "blocked") or item.status in ("unknown", "restricted"):
-                self._apply_entity_status("bridge_07", EntityStatus.UNCERTAIN, item.raw_text or item.event)
+                self._apply_entity_status("bridge_b07", EntityStatus.UNCERTAIN, item.raw_text or item.event)
             elif item.event == "operational" and item.status == "operational":
-                self.state.entities["bridge_07"] = EntityFact(
-                    entity_id="bridge_07", attribute="access", value="operational",
-                    status=EntityStatus.CONFLICTING if ConflictEngine.has_conflict(self.store, "bridge_07") else EntityStatus.KNOWN,
+                self.state.entities["bridge_b07"] = EntityFact(
+                    entity_id="bridge_b07", attribute="access", value="operational",
+                    status=EntityStatus.CONFLICTING if ConflictEngine.has_conflict(self.store, "bridge_b07") else EntityStatus.KNOWN,
                     source=item.source, timestamp=self.state.now(),
                 )
 
     def _apply_entity_status(self, entity: str, status: EntityStatus, reason: str) -> None:
-        if entity == "bridge_07":
+        if entity == "bridge_b07":
             if status in (EntityStatus.UNAVAILABLE, EntityStatus.CONFLICTING, EntityStatus.UNCERTAIN, EntityStatus.UNKNOWN):
                 cascade = DependencyAgent.propagate(self.state, self.graph, entity, status)
                 DependencyAgent.apply_cascade(self.state, cascade)
                 self.log("DEPENDENCY AGENT", f"{cascade['total_affected']} downstream assets affected")
                 self.state.last_state_change = f"{entity} → {status.value}: {reason}"
-        elif entity == "vehicle_12" and entity in self.state.vehicles:
+        elif entity in self.state.vehicles:
             self.state.vehicles[entity].available = status != EntityStatus.UNAVAILABLE
             self.state.vehicles[entity].status = status
             if not self.state.vehicles[entity].available:
                 DependencyAgent.propagate(self.state, self.graph, entity, status)
-                self.log("DEPENDENCY AGENT", "Vehicle 12 unavailable — route assignment affected")
+                self.log("DEPENDENCY AGENT", f"Vehicle {entity} unavailable — route assignment affected")
         elif entity == "gps_network":
             self.state.gps_available = status != EntityStatus.UNAVAILABLE
             self.log("DEPENDENCY AGENT", "GPS outage affects route telemetry confidence")
@@ -128,65 +141,16 @@ class MissionOrchestrator:
             self.log("EVIDENCE AGENT", f"Weather updated to {self.state.weather.value}")
 
     def run_full_cycle(self) -> RealityState:
-        conflicts = ConflictEngine.detect_conflicts(self.store)
-        self.state.conflicts = [
-            {
-                "entity": c.entity,
-                "sources": c.sources,
-                "claims": c.claims,
-                "impact": c.decision_impact,
-                "action": c.recommended_action,
-            }
-            for c in conflicts
-        ]
-
-        if conflicts:
-            self.log("ORCHESTRATOR", "Conflicting evidence detected")
-            for c in conflicts:
-                if c.entity not in self.state.unknowns:
-                    self.state.unknowns.append(c.entity)
-                self.state.entities[c.entity] = EntityFact(
-                    entity_id=c.entity,
-                    attribute="access",
-                    value="conflicting",
-                    status=EntityStatus.CONFLICTING,
-                    source="conflict_engine",
-                    timestamp=self.state.now(),
-                )
-
-        ranked = VerificationAgent.rank_unknowns(self.state, self.store, self.graph)
-        if ranked:
-            top = ranked[0]
-            self.log("VERIFICATION AGENT", f"{top.entity} = highest-value unknown (score {top.priority_score})")
-
-        feasible, verify_msg = VerificationAgent.verification_feasible(self.state)
-        if not feasible:
-            self.log("RISK ENGINE", "Decision window < verification latency")
-            verification_note = verify_msg
-        elif ranked and ranked[0].recommendation == "VERIFY":
-            verification_note = f"Recommend verify {ranked[0].entity} (~{ranked[0].verification_time_min:.0f} min)"
-        else:
-            verification_note = "Not recommended — verification exceeds decision window" if not feasible else "Verification optional"
-
-        risk = RiskEngine.assess(self.state)
-        packet = DecisionAgent.generate_packet(self.state, risk, verification_note, self._policy_change_reason)
-        self._policy_change_reason = ""
-
-        sim_report = SimulationAgent.stress_test(self.state, packet)
-        packet.simulation_summary = {
-            "best_case": sim_report.best_case.recommendation,
-            "worst_case": sim_report.worst_case.recommendation,
-            "worst_delay": sim_report.worst_case.delay_min,
-        }
-
-        self.log("DECISION AGENT", f"Recommending {packet.recommendation}")
-        self.log("SIMULATION AGENT", f"Worst-case delay: {sim_report.worst_case.delay_min} min")
-        self.log("DECISION PACKET", "Ready for human authorization")
-
-        self.state.current_packet = packet
-        self.state.replan_count += 1
-        self.state.log_audit("DECISION_COMPUTED", "ORCHESTRATOR", packet.recommendation, policy=packet.policy.value)
+        for _ in self.run_agent_pipeline_generator():
+            pass
         return self.state
+
+    def run_agent_pipeline_generator(self):
+        """Execute the real autonomous agent loop using the AutonomousPlannerAgent."""
+        from agents.autonomous_agent import AutonomousPlannerAgent
+        self.planner_agent = AutonomousPlannerAgent(self.state, self.store, self.graph)
+        for step in self.planner_agent.run_agent_loop_generator():
+            yield step
 
     def authorize(self, action: str = "AUTHORIZE") -> RealityState:
         packet = self.state.current_packet
@@ -196,7 +160,9 @@ class MissionOrchestrator:
         if action == "AUTHORIZE":
             packet.authorization_status = "AUTHORIZED"
             packet.human_authorized_at = now
+            self.sentinel_status = "MONITORING"
             self.log("HUMAN COMMANDER", f"AUTHORIZED: {packet.recommendation}")
+            self.log("CONTINUOUS SENTINEL", "Continuous Sentinel actively monitoring authorized plan for post-authorization reality shifts...")
             self.state.log_audit("HUMAN_AUTHORIZED", "HUMAN_COMMANDER", packet.recommendation)
         elif action == "REJECT":
             packet.authorization_status = "REJECTED"
@@ -214,3 +180,57 @@ class MissionOrchestrator:
             v.status = EntityStatus.UNAVAILABLE
         self.log("ORCHESTRATOR", "All evacuation vehicles unavailable — capacity gap")
         return self.run_full_cycle()
+
+    def run_autonomous_loop_generator(self):
+        """Execute the complete closed-loop autonomous demo across all scenario phases with real tool receipts."""
+        from simulation.scenarios.when_reality_breaks import DEMO_EVENTS
+        from core.tools.tool_registry import GLOBAL_TOOL_REGISTRY
+        
+        # Phase 1: Initial World Observation & Base Decision
+        self.log("ORCHESTRATOR", "AUTONOMOUS MISSION STARTED — Phase 1: Initial World Observation")
+        for step in self.run_agent_pipeline_generator():
+            yield step
+        
+        # Real Simulated Action 1
+        t_res = GLOBAL_TOOL_REGISTRY.execute("simulate_action", self.state, self.store, self.graph, {"action_type": "DISPATCH", "detail": "Rescue Truck V-02 dispatched on Route R-12"})
+        self.state.last_state_change = "V-02 Dispatched on Route R-12 (Fast Corridor)"
+        self.state.log_audit("SIMULATED_ACTION", "AUTONOMOUS_PLANNER", "Rescue Truck V-02 dispatched on Route R-12")
+        yield {"step": "synthetic_execution", "phase": 1, "detail": "Rescue Truck V-02 dispatched on Route R-12"}
+        time.sleep(1.0)
+
+        # Phase 2: Event 1 - Bridge B-07 Fails
+        self.log("ORCHESTRATOR", "AUTONOMOUS SCENARIO — Event 1: Bridge B-07 Failure Introduced")
+        self.process_events([DEMO_EVENTS["bridge_fails"]])
+        for step in self.run_agent_pipeline_generator():
+            yield step
+            
+        # Real Simulated Action 2
+        t_res = GLOBAL_TOOL_REGISTRY.execute("simulate_action", self.state, self.store, self.graph, {"action_type": "REROUTE", "detail": "Rescue Truck V-02 rerouted to R-14 via Depot D-04"})
+        self.state.last_state_change = "V-02 Rerouted via Route R-14 (Safe Bypass Detour)"
+        self.state.log_audit("SIMULATED_ACTION", "AUTONOMOUS_PLANNER", "Rescue Truck V-02 rerouted to R-14 via Depot D-04")
+        yield {"step": "synthetic_execution", "phase": 2, "detail": "Rescue Truck V-02 rerouted to Route R-14"}
+        time.sleep(1.0)
+
+        # Phase 3: Event 2 - Satellite Contradiction
+        self.log("ORCHESTRATOR", "AUTONOMOUS SCENARIO — Event 2: Satellite Contradiction Introduced")
+        self.process_events([DEMO_EVENTS["bridge_conflict"]])
+        for step in self.run_agent_pipeline_generator():
+            yield step
+            
+        # Real Simulated Action 3
+        t_res = GLOBAL_TOOL_REGISTRY.execute("simulate_action", self.state, self.store, self.graph, {"action_type": "RECON_DRONE", "detail": "Drone reconnaissance dispatched to verify Bridge B-07"})
+        self.state.log_audit("SIMULATED_ACTION", "AUTONOMOUS_PLANNER", "Drone reconnaissance dispatched for Bridge B-07")
+        yield {"step": "synthetic_execution", "phase": 3, "detail": "Drone Reconnaissance Dispatched"}
+        time.sleep(1.0)
+
+        # Phase 4: Event 3 - Vehicle Loss / Capacity Gap & Replan
+        self.log("ORCHESTRATOR", "AUTONOMOUS SCENARIO — Event 3: Rescue Truck V-02 Flooded (Capacity Gap)")
+        self.process_events([DEMO_EVENTS["vehicle_lost"]])
+        for step in self.run_agent_pipeline_generator():
+            yield step
+            
+        # Real Simulated Action 4
+        t_res = GLOBAL_TOOL_REGISTRY.execute("simulate_action", self.state, self.store, self.graph, {"action_type": "AIRLIFT_REQUEST", "detail": "External State Airlift Escalation Request Issued"})
+        self.state.log_audit("SIMULATED_ACTION", "AUTONOMOUS_PLANNER", "External Airlift Escalation Request Issued")
+        yield {"step": "synthetic_execution", "phase": 4, "detail": "External Airlift Escalation Requested"}
+

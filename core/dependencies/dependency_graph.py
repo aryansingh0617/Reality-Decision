@@ -60,14 +60,12 @@ class DependencyGraph:
 
 def build_default_graph() -> DependencyGraph:
     g = DependencyGraph()
-    g.add_node(DependencyNode("bridge_07", "bridge", "Bridge 07", impacts=["route_alpha", "hospital_north_access"]))
-    g.add_node(DependencyNode("route_alpha", "route", "Route Alpha", depends_on=["bridge_07"], impacts=["hospital_north"]))
-    g.add_node(DependencyNode("route_bravo", "route", "Route Bravo", depends_on=["shelter_a", "shelter_b"], impacts=["hospital_north"]))
-    g.add_node(DependencyNode("route_charlie", "route", "Route Charlie", depends_on=["bridge_07"], impacts=["hospital_north"]))
-    g.add_node(DependencyNode("vehicle_12", "vehicle", "Vehicle 12", impacts=["route_bravo"]))
-    g.add_node(DependencyNode("hospital_north", "hospital", "Hospital North", depends_on=["route_alpha", "route_bravo"]))
-    g.add_node(DependencyNode("hospital_north_access", "access", "Hospital Access", depends_on=["bridge_07"], impacts=["hospital_north"]))
-    g.add_node(DependencyNode("shelter_a", "shelter", "Riverside Shelter", impacts=["route_bravo"]))
-    g.add_node(DependencyNode("shelter_b", "shelter", "Eastside Triage", impacts=["route_bravo"]))
-    g.add_node(DependencyNode("gps_network", "telemetry", "GPS Network", impacts=["route_alpha", "route_bravo", "route_charlie"]))
+    g.add_node(DependencyNode("bridge_b07", "bridge", "Bridge B-07", impacts=["route_r12"]))
+    g.add_node(DependencyNode("route_r12", "route", "Route R-12", depends_on=["bridge_b07"], impacts=["depot_d03"]))
+    g.add_node(DependencyNode("route_r14", "route", "Route R-14", depends_on=[], impacts=["depot_d04"]))
+    g.add_node(DependencyNode("depot_d03", "depot", "Depot D-03", depends_on=["route_r12"], impacts=["shelter_s04"]))
+    g.add_node(DependencyNode("depot_d04", "depot", "Depot D-04", depends_on=["route_r14"], impacts=["shelter_s04"]))
+    g.add_node(DependencyNode("shelter_s04", "shelter", "Shelter S-04", depends_on=["depot_d03", "depot_d04"]))
+    g.add_node(DependencyNode("vehicle_v01", "vehicle", "Vehicle V-01", impacts=["route_r12", "route_r14"]))
+    g.add_node(DependencyNode("gps_network", "telemetry", "GPS Network", impacts=["route_r12", "route_r14"]))
     return g

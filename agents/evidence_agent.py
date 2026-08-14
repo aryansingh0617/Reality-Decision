@@ -15,9 +15,9 @@ from core.validation.schema import SchemaValidator, ValidationError
 # Deterministic mock parser patterns — works offline without API key
 MOCK_PATTERNS: list[tuple[re.Pattern, dict[str, Any]]] = [
     (
-        re.compile(r"bridge\s*07.*(?:submerged|collapsed|blocked|cannot cross|access.?restrict)", re.I),
+        re.compile(r"bridge\s*(?:b-?07|07).*(?:submerged|collapsed|blocked|cannot cross|access.?restrict)", re.I),
         {
-            "entity": "bridge_07",
+            "entity": "bridge_b07",
             "event": "access_restriction",
             "status": "unknown",
             "constraints": ["heavy_vehicle_restricted"],
@@ -25,9 +25,9 @@ MOCK_PATTERNS: list[tuple[re.Pattern, dict[str, Any]]] = [
         },
     ),
     (
-        re.compile(r"bridge\s*07.*(?:intact|operational|passable|appears fine)", re.I),
+        re.compile(r"bridge\s*(?:b-?07|07).*(?:intact|operational|passable|appears fine)", re.I),
         {
-            "entity": "bridge_07",
+            "entity": "bridge_b07",
             "event": "operational",
             "status": "operational",
             "constraints": [],
@@ -35,9 +35,9 @@ MOCK_PATTERNS: list[tuple[re.Pattern, dict[str, Any]]] = [
         },
     ),
     (
-        re.compile(r"vehicle\s*12.*(?:unavailable|broken|lost|offline)", re.I),
+        re.compile(r"vehicle\s*(?:v-?01|12).*(?:unavailable|broken|lost|offline|flooded)", re.I),
         {
-            "entity": "vehicle_12",
+            "entity": "vehicle_v01",
             "event": "unavailable",
             "status": "unavailable",
             "constraints": [],
@@ -47,7 +47,7 @@ MOCK_PATTERNS: list[tuple[re.Pattern, dict[str, Any]]] = [
     (
         re.compile(r"weather.*(?:deteriorat|worsen|flood|heavy rain)", re.I),
         {
-            "entity": "route_bravo",
+            "entity": "route_r14",
             "event": "weather_change",
             "status": "uncertain",
             "constraints": ["weather_delay"],
@@ -55,9 +55,9 @@ MOCK_PATTERNS: list[tuple[re.Pattern, dict[str, Any]]] = [
         },
     ),
     (
-        re.compile(r"shelter.*(?:capacity|full|collapse)", re.I),
+        re.compile(r"shelter\s*s-?04.*(?:capacity|full|collapse|evacuate)", re.I),
         {
-            "entity": "shelter_a",
+            "entity": "shelter_s04",
             "event": "capacity_reduction",
             "status": "uncertain",
             "constraints": ["reduced_capacity"],
@@ -77,7 +77,7 @@ MOCK_PATTERNS: list[tuple[re.Pattern, dict[str, Any]]] = [
     (
         re.compile(r"satellite.*bridge.*intact", re.I),
         {
-            "entity": "bridge_07",
+            "entity": "bridge_b07",
             "event": "operational",
             "status": "operational",
             "constraints": [],
@@ -89,7 +89,7 @@ MOCK_PATTERNS: list[tuple[re.Pattern, dict[str, Any]]] = [
     (
         re.compile(r"traffic sensor.*no vehicles", re.I),
         {
-            "entity": "bridge_07",
+            "entity": "bridge_b07",
             "event": "blocked",
             "status": "unknown",
             "constraints": [],
@@ -145,11 +145,37 @@ class EvidenceAgent:
         ]
 
     def _try_llm(self, raw_text: str, source: str) -> dict | None:
-        api_key = os.environ.get("OPENAI_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
-        if not api_key:
+        from agents.llm_client import call_openai_json
+        from core.validation.schema import SchemaValidator
+        
+        system_prompt = (
+            "You are an Evidence Extraction Agent for a disaster response operations command center.\n"
+            "Your task is to analyze unstructured reports and extract a structured evidence fact.\n"
+            "You MUST return a JSON object with the following fields and no other keys:\n"
+            "{\n"
+            "  \"entity\": \"bridge_b07\" | \"route_r12\" | \"route_r14\" | \"depot_d03\" | \"depot_d04\" | \"shelter_s04\" | \"vehicle_v01\" | \"gps_network\" (MUST be exactly one of these, do not invent any others),\n"
+            "  \"event\": \"access_restriction\" | \"collapse\" | \"operational\" | \"passable\" | \"blocked\" | \"unavailable\" | \"capacity_reduction\" | \"weather_change\" | \"gps_outage\",\n"
+            "  \"status\": \"known\" | \"unknown\" | \"uncertain\" | \"confirmed\" | \"stale\" | \"conflicting\" | \"unavailable\" | \"operational\" | \"restricted\",\n"
+            "  \"source\": \"string\" (the reporter or sensor name, e.g., 'field_scout_02'),\n"
+            "  \"confidence_class\": \"HIGH\" | \"MEDIUM\" | \"LOW\",\n"
+            "  \"constraints\": [\"string\"] (optional, list of constraints mentioned like 'heavy_vehicle_restricted')\n"
+            "}\n"
+            "CRITICAL: Do NOT invent resources. Do NOT output markdown formatting other than raw JSON."
+        )
+        
+        user_prompt = f"Extract evidence from raw report: '{raw_text}'\nDefault source to: '{source}'"
+        
+        data = call_openai_json(system_prompt, user_prompt)
+        if not data:
             return None
-        # LLM path exists but demo uses deterministic fallback
-        return None
+            
+        try:
+            # Validate the JSON output to ensure it matches allowed entities and formats
+            validated = SchemaValidator.validate_evidence(data)
+            return validated
+        except Exception as e:
+            # Fall back if it doesn't pass validation
+            return None
 
     def _mock_parse(self, raw_text: str, source: str, now: datetime) -> list[EvidenceItem]:
         items: list[EvidenceItem] = []
