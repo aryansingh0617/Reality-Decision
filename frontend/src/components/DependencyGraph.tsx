@@ -44,15 +44,17 @@ const TacticalDiamondNode = ({ data }: { data: any }) => {
       
       {/* Outer Diamond Marker matching reference image */}
       <div
-        className={`w-7 h-7 border rotate-45 flex items-center justify-center transition-all duration-300 shadow-md ${
-          isGhost
-            ? 'border-[#718086] border-dashed bg-transparent'
+        className={`w-7 h-7 border flex items-center justify-center transition-all duration-300 shadow-md ${
+          data.status === 'UNAVAILABLE' || data.status === 'FAILED'
+            ? 'neon-node-failed bg-[#10171c] border-[#ff453a] scale-110'
+            : isGhost
+            ? 'rotate-45 border-[#718086] border-dashed bg-transparent'
             : isRecommended
-            ? 'border-[#65c89a] bg-[#0d1418] ring-2 ring-[#65c89a]/50 shadow-[#65c89a]/40 scale-110'
-            : `${style.border} ${style.bg} ${style.glow}`
+            ? 'rotate-45 border-[#34c759] bg-[#0e151b] ring-2 ring-[#34c759]/60 shadow-[0_0_20px_rgba(52,199,89,0.5)] scale-110'
+            : `rotate-45 ${style.border} ${style.bg} ${style.glow}`
         } group-hover:scale-115`}
       >
-        <div className={`w-2.5 h-2.5 rotate-45 ${isGhost ? 'bg-[#718086]' : isRecommended ? 'bg-[#65c89a]' : style.dot}`}></div>
+        <div className={`w-2.5 h-2.5 rotate-45 ${isGhost ? 'bg-[#718086]' : isRecommended ? 'bg-[#34c759]' : style.dot}`}></div>
       </div>
 
       {/* Label & Status underneath node */}

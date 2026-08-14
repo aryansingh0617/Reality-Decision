@@ -21,6 +21,8 @@ import { CausalTrace } from './components/CausalTrace';
 import { CounterfactualFutures } from './components/CounterfactualFutures';
 import { DecisionBoundaryGauge } from './components/DecisionBoundaryGauge';
 import { RoleViews } from './components/RoleViews';
+import { GuidedWalkthrough } from './components/GuidedWalkthrough';
+import { ControlInfoModal, WhatJustHappenedPanel } from './components/ContextualHelp';
 import {
   Play,
   RotateCcw,
@@ -31,6 +33,8 @@ import {
   Search,
   Command,
   Activity,
+  Sparkles,
+  Info,
 } from 'lucide-react';
 
 const SPRING = {
@@ -48,6 +52,8 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [counterfactualInfo, setCounterfactualInfo] = useState<string | null>(null);
   const [role, setRole] = useState<'GUEST' | 'OPERATOR' | 'COMMAND' | 'ADMIN'>('OPERATOR');
+  const [isWalkthroughOpen, setIsWalkthroughOpen] = useState(false);
+  const [activeInfoControl, setActiveInfoControl] = useState<string | null>(null);
 
   const getISTTime = () => {
     return new Intl.DateTimeFormat('en-GB', {
@@ -238,7 +244,7 @@ function App() {
       {showOpening && <CinematicOpening onDismiss={() => setShowOpening(false)} />}
 
       {/* Topbar Command Branding */}
-      <header className="topbar bg-[#14181a] border-b border-[#242a2e] px-6 py-3 flex items-center justify-between">
+      <header className="topbar bg-[#14181a] border-b border-[#242a2e] px-6 py-3 flex items-center justify-between" id="topbar-container">
         <div className="brand flex items-center gap-3">
           <div className="brand-mark w-8 h-8 bg-[#1e2428] border border-[#242a2e] rounded flex items-center justify-center text-[#2ecc71]">
             <Command className="w-4 h-4" />
@@ -249,17 +255,34 @@ function App() {
           </div>
         </div>
 
-        <div className="topbar-meta flex items-center gap-6 font-mono text-xs">
+        <div className="topbar-meta flex items-center gap-4 font-mono text-xs">
+          {/* Guided Walkthrough Button */}
+          <button
+            onClick={() => setIsWalkthroughOpen(true)}
+            className="px-3 py-1.5 bg-[#6fa8dc] text-[#07090b] font-bold rounded flex items-center gap-1.5 hover:bg-[#9cc7ed] transition-all cursor-pointer shadow-md text-xs"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>GUIDED WALKTHROUGH</span>
+          </button>
+
           <div className="demo-chip bg-[#0a0d0f] border border-[#242a2e] px-3 py-1 rounded text-[#8a9aaa] text-[10px] flex items-center gap-2">
             <span className="text-[#3498db] font-bold">{istTime}</span>
             <span className="text-[#242a2e]">│</span>
-            <span>SYNTHETIC SCENARIO · NOT LIVE EMERGENCY DATA</span>
+            <span>SYNTHETIC SCENARIO</span>
           </div>
-          <div className="flex items-center gap-2">
+
+          <div className="flex items-center gap-2 border border-[#242a2e] bg-[#0a0d0f] px-2.5 py-1 rounded">
             <span className={`w-2 h-2 rounded-full ${state.llm_mode_active ? 'bg-[#3498db]' : 'bg-[#2ecc71]'}`}></span>
             <span className={state.llm_mode_active ? 'text-[#3498db] font-bold' : 'text-[#2ecc71] font-bold'}>
               REASONING: {state.reasoning_mode || (state.llm_mode_active ? 'LLM-ENHANCED' : 'OFFLINE DETERMINISTIC')}
             </span>
+            <button
+              onClick={() => setActiveInfoControl('reasoning_mode')}
+              className="text-[#718086] hover:text-[#6fa8dc] ml-1 cursor-pointer"
+              title="Inspect Reasoning Mode"
+            >
+              <Info className="w-3 h-3" />
+            </button>
           </div>
         </div>
       </header>
@@ -275,7 +298,7 @@ function App() {
         <RoleViews state={state} role={role} onRoleChange={setRole} onAuthorize={handleAuthorize} />
 
         {/* Hero Mission Statement Banner */}
-        <section className="briefing bg-[#14181a] border border-[#242a2e] rounded-lg p-5 text-left">
+        <section className="briefing bg-[#14181a] border border-[#242a2e] rounded-lg p-5 text-left" id="mission-briefing-panel">
           <div className="text-[10px] font-mono text-[#8a9aaa] uppercase tracking-widest mb-1">
             OPERATION ASSAM FLOOD <span className="text-[#5a6a7a]">/</span> INCIDENT COMMAND 04
           </div>
@@ -302,6 +325,9 @@ function App() {
             </div>
           </div>
         </section>
+
+        {/* Live Context Panel: What Just Happened? */}
+        <WhatJustHappenedPanel state={state} />
 
         {/* Continuous Sentinel Status Banner */}
         <motion.section
@@ -463,6 +489,20 @@ function App() {
           <div>MISSION RE-PLAN CYCLES: {state.replan_count} · DECISION HORIZON: {state.decision_horizon_min}M</div>
         </footer>
       </motion.div>
+
+      {/* Interactive Guided Walkthrough Modal */}
+      <GuidedWalkthrough
+        isOpen={isWalkthroughOpen}
+        onClose={() => setIsWalkthroughOpen(false)}
+        role={role}
+        onRoleChange={setRole}
+      />
+
+      {/* Control Info Popover Modal */}
+      <ControlInfoModal
+        controlKey={activeInfoControl}
+        onClose={() => setActiveInfoControl(null)}
+      />
     </div>
   );
 }
