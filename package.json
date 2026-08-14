@@ -3,6 +3,6 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "cd frontend && npm install && npm run build && cd .. && node -e \"require('fs').cpSync('frontend/dist', 'dist', {recursive: true})\""
+    "build": "cd frontend && npm install && npm run build && cd .. && node -e \"const fs=require('fs'); ['dist', 'app/dist'].forEach(d => fs.cpSync('frontend/dist', d, {recursive: true}));\""
   }
 }

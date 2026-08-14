@@ -377,3 +377,45 @@ def challenge_plan():
         "violations": violations,
     }
 
+
+# Static Frontend Bundle Serving for Unified Production Deployment
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, HTMLResponse
+
+def _get_frontend_dist():
+    possible_paths = [
+        os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend", "dist"),
+        os.path.join(os.path.dirname(os.path.dirname(__file__)), "dist"),
+        os.path.join(os.path.dirname(__file__), "dist"),
+        os.path.join(os.getcwd(), "frontend", "dist"),
+        os.path.join(os.getcwd(), "dist"),
+    ]
+    for p in possible_paths:
+        if os.path.exists(p) and os.path.exists(os.path.join(p, "index.html")):
+            return p
+    return None
+
+dist_dir = _get_frontend_dist()
+if dist_dir:
+    assets_dir = os.path.join(dist_dir, "assets")
+    if os.path.exists(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+    @app.get("/")
+    def serve_root():
+        return FileResponse(os.path.join(dist_dir, "index.html"))
+
+    @app.get("/{full_path:path}")
+    def serve_spa(full_path: str):
+        if full_path.startswith("api"):
+            raise HTTPException(status_code=404, detail=f"API endpoint '/{full_path}' not found")
+        file_path = os.path.join(dist_dir, full_path)
+        if os.path.exists(file_path) and os.path.isfile(file_path):
+            return FileResponse(file_path)
+        return FileResponse(os.path.join(dist_dir, "index.html"))
+else:
+    @app.get("/")
+    def serve_fallback_root():
+        return HTMLResponse("<h1>REALITY//DECISION API OPERATIONAL</h1><p>Backend is online. Building frontend assets...</p>")
+
+

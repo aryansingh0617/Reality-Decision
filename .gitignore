@@ -45,3 +45,4 @@ htmlcov/
 # Local backups & scratch scripts
 backup/
 scratch/
+app/dist/
