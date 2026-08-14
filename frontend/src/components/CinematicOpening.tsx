@@ -87,11 +87,8 @@ export const CinematicOpening: React.FC<CinematicOpeningProps> = ({ onDismiss })
               REALITY//DECISION
             </h1>
             
-            <p className="text-[#f5c86e] tracking-[0.16em] text-xs sm:text-sm uppercase max-w-xl font-mono leading-relaxed mt-4 mb-2 font-bold">
+            <p className="text-[#8a9aaa] tracking-[0.16em] text-xs sm:text-sm uppercase max-w-lg font-mono leading-relaxed mt-4 mb-0">
               WHEN REALITY CHANGES, THE PLAN MUST CHANGE WITH IT.
-            </p>
-            <p className="text-[#8a9aaa] tracking-[0.12em] text-[11px] uppercase max-w-lg font-mono leading-normal">
-              Autonomous AI decision-support platform that observes changing conditions, investigates consequences, and adapts plans under human authorization.
             </p>
           </motion.div>
 
