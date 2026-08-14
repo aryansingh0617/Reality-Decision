@@ -128,8 +128,13 @@ export async function fetchHealthStatus(): Promise<{ status: string; llm_availab
 
 export async function fetchState(): Promise<RealityState> {
   const res = await fetch(`${API_BASE}/state`);
-  if (!res.ok) throw new Error('Failed to fetch state');
-  return res.json();
+  if (!res.ok) throw new Error(`Backend state endpoint returned HTTP ${res.status}`);
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch (_e) {
+    throw new Error('Received non-JSON response from backend state endpoint.');
+  }
 }
 
 export async function initializeMission(): Promise<RealityState> {
