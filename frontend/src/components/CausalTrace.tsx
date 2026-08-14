@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Activity, ShieldAlert, GitBranch, AlertTriangle, Search, RefreshCw, CheckCircle2, X } from 'lucide-react';
+import { Activity, ShieldAlert, GitBranch, AlertTriangle, Search, RefreshCw, CheckCircle2, X, ArrowRight } from 'lucide-react';
 import type { DecisionPacket } from '../api';
 
 interface CausalTraceProps {
@@ -9,6 +9,8 @@ interface CausalTraceProps {
 
 export const CausalTrace: React.FC<CausalTraceProps> = ({ packet, replanCount }) => {
   const [selectedStep, setSelectedStep] = useState<any | null>(null);
+
+  const isB07Down = packet?.why.some(w => w.includes('Bridge')) || packet?.recommendation.includes('R-14') || packet?.recommendation.includes('ESCALATION');
 
   const steps = [
     {
@@ -25,7 +27,7 @@ export const CausalTrace: React.FC<CausalTraceProps> = ({ packet, replanCount })
       label: 'FAILURE',
       agent: 'Evidence Agent',
       icon: ShieldAlert,
-      detail: packet?.why.some(w => w.includes('Bridge')) ? 'Bridge B-07 Submerged' : 'Nominal Operational State',
+      detail: isB07Down ? 'Bridge B-07 Submerged' : 'Nominal Operational State',
       input: 'Event stream: Bridge B-07 status set to UNAVAILABLE.',
       reasoning: 'High flood water detected at Guwahati Waterway. B-07 structural failure.',
       output: 'Entity B-07 → UNAVAILABLE',
@@ -95,13 +97,37 @@ export const CausalTrace: React.FC<CausalTraceProps> = ({ packet, replanCount })
   ];
 
   return (
-    <div className="panel font-mono text-left relative">
+    <div className="panel font-mono text-left relative flex flex-col h-full">
       <div className="panel-header">
-        <span className="panel-title">Counterfactual Causal Reasoning Trace</span>
+        <span className="panel-title">Why the System Changed Its Mind (Adaptation Flow)</span>
         <span className="panel-tag">CAUSAL PIPELINE · {replanCount} CYCLES</span>
       </div>
 
-      <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* Visual Delta Banner */}
+      <div className="p-3 bg-[#0a0f12] border-b border-[#253139] grid grid-cols-1 md:grid-cols-5 gap-2 text-center text-xs">
+        <div className="border border-[#253139] bg-[#07090b] p-2 rounded">
+          <span className="text-[9px] text-[#718086] block font-bold uppercase">01 BEFORE</span>
+          <span className="text-[#65c89a] font-bold text-[11px]">R-12 FAST CORRIDOR</span>
+        </div>
+        <div className="flex items-center justify-center text-[#e45b55] border border-[#e45b55]/30 bg-[#e45b55]/10 p-2 rounded">
+          <ArrowRight className="w-3 h-3 mr-1 hidden md:block" />
+          <span className="font-bold text-[10px]">02 DISRUPTION: B-07 FAILURE</span>
+        </div>
+        <div className="border border-[#e7a23b]/30 bg-[#e7a23b]/10 p-2 rounded text-[#f5c86e]">
+          <span className="text-[9px] text-[#e7a23b] block font-bold uppercase">03 CASCADE</span>
+          <span className="font-bold text-[11px]">R-12 INOPERABLE</span>
+        </div>
+        <div className="border border-[#6fa8dc]/30 bg-[#6fa8dc]/10 p-2 rounded text-[#9cc7ed]">
+          <span className="text-[9px] text-[#6fa8dc] block font-bold uppercase">04 AI RE-EVALUATION</span>
+          <span className="font-bold text-[11px]">TOOLS & COUNTERFACTUALS</span>
+        </div>
+        <div className="border border-[#65c89a]/50 bg-[#65c89a]/10 p-2 rounded text-[#65c89a]">
+          <span className="text-[9px] text-[#65c89a] block font-bold uppercase">05 ADAPTED PLAN</span>
+          <span className="font-bold text-[11px] truncate block">{packet?.recommendation || 'R-14 SAFE DETOUR'}</span>
+        </div>
+      </div>
+
+      <div className="p-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2.5 flex-1 overflow-y-auto">
         {steps.map((s, idx) => {
           const Icon = s.icon;
           const isFinal = s.isFinal;
@@ -110,7 +136,7 @@ export const CausalTrace: React.FC<CausalTraceProps> = ({ packet, replanCount })
             <button
               key={idx}
               onClick={() => setSelectedStep(s)}
-              className={`border rounded p-2.5 flex flex-col justify-between text-left transition-all hover:border-[#6fa8dc] ${
+              className={`border rounded p-2.5 flex flex-col justify-between text-left transition-all hover:border-[#6fa8dc] cursor-pointer ${
                 isFinal
                   ? 'border-[#65c89a]/50 bg-[#65c89a]/10 text-[#65c89a]'
                   : 'border-[#253139] bg-[#0a0f12] text-[#aab5b8]'
@@ -140,7 +166,7 @@ export const CausalTrace: React.FC<CausalTraceProps> = ({ packet, replanCount })
             </div>
             <button
               onClick={() => setSelectedStep(null)}
-              className="text-[#718086] hover:text-[#f1f3f0]"
+              className="text-[#718086] hover:text-[#f1f3f0] cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
