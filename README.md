@@ -1,4 +1,5 @@
-# REALITY//DECISION:https://reality-decision-prototype.vercel.app/
+# REALITY//DECISION:
+https://reality-decision-prototype.vercel.app/
 
 ### Autonomous AI Decision Intelligence for Dynamic, Uncertain Environments
 
