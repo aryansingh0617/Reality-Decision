@@ -1,0 +1,6 @@
+WHAT THE RESEARCH PROVES
+Dynamic Rerouting Superiority: Deep Reinforcement Learning (PPO) and dynamic graph algorithms outperform static routing (Dijkstra/GA) during disaster disruptions, reducing delivery delays and recovery latency by over 35% (Dwivedi 2026, Pasupuleti 2025).
+Active Multi-Modal Fusion Eliminates Alarms: Fusing IoT sensor streams, satellite imagery, and field reports using rule-based/fuzzy logic reduces false alarms by 40–45% and cuts dispatch response times from 11 hours down to 3.6 hours (Singh 2026, Lakshmi 2025, Avula 2025).
+Decentralized Multi-Agent Resilience: Multi-Agent Systems (MAS) paired with edge computing maintain high allocation efficiency (90%) and fault tolerance even when primary communication networks experience total blackouts (Hartman 2026, Sakpal 2024).
+Human Trust Requires Explicit Provenance & XAI: Incident Commanders reject "black-box" AI recommendations under high-stress crisis trade-offs unless the system provides transparent rationale, confidence bounds, and raw evidence provenance graphs (Ramchurn 2015, Simões-Marques 2018, Domfeh 2025).
+Coupled Hydro-Traffic Modeling Prevents Traps: Incorporating time-dependent flood inundation physics prevents evacuation planners from routing vehicles into submerging road traps (Fahad 2019, Salvo 2025, Haghpanah 2018).
