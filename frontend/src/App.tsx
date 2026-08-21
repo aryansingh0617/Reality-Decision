@@ -89,6 +89,8 @@ export function App() {
   const voicesRef = useRef<SpeechSynthesisVoice[]>([]);
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [mapMode, setMapMode] = useState<'operational' | 'network'>('operational');
+  const [replayRouteId, setReplayRouteId] = useState<string | null>(null);
+  const [replaying, setReplaying] = useState(false);
   const [history, setHistory] = useState<RealitySnapshot[]>([]);
 
   // Load available speech voices; prefer a natural English voice
@@ -136,6 +138,16 @@ export function App() {
   const stopSpeaking = () => {
     try {
       window.speechSynthesis?.cancel();
+    } catch {}
+  };
+  const warmedRef = useRef(false);
+  const warmUp = () => {
+    if (warmedRef.current || typeof window === 'undefined' || !window.speechSynthesis) return;
+    try {
+      const u = new SpeechSynthesisUtterance(' ');
+      u.volume = 0;
+      window.speechSynthesis.speak(u);
+      warmedRef.current = true;
     } catch {}
   };
 
@@ -252,6 +264,8 @@ export function App() {
       return demoRef.current;
     };
     try {
+      warmUp();
+      await sleep(350);
       say('Reality is stable — the system already holds a current recommendation.', 1);
       if (!(await alive(3200))) return;
       say('Running a decision cycle — reading reality and weighing every route…', 2);
@@ -398,7 +412,7 @@ export function App() {
                         className="w-full" style={{ accentColor: 'var(--rd-accent)' }}
                       />
                     </div>
-                    <button onClick={() => speak('Narration ready. This is how the guided demo will sound.')} className="rd-btn rd-btn-ghost w-full">
+                    <button onClick={() => { warmUp(); speak('Narration ready. This is how the guided demo will sound.'); }} className="rd-btn rd-btn-ghost w-full">
                       <Volume2 className="h-3.5 w-3.5" /> Test voice
                     </button>
                   </div>
@@ -533,7 +547,7 @@ export function App() {
                 </div>
                 <div className="h-[440px] rd-anim-fade">
                   {mapMode === 'operational' ? (
-                    <SpatialMapCanvas state={state} activePlanRouteId={packet?.route_id} />
+                    <SpatialMapCanvas state={state} activePlanRouteId={packet?.route_id} replayRouteId={replaying ? replayRouteId : null} />
                   ) : (
                     <DependencyGraph state={state} />
                   )}
@@ -546,7 +560,22 @@ export function App() {
             </div>
 
             {/* Reality timeline */}
-            <RealityTimeline history={history} currentVersion={state?.world_state_version ?? 1} onNarrate={speak} onStopNarrate={stopSpeaking} />
+            <RealityTimeline
+              history={history}
+              currentVersion={state?.world_state_version ?? 1}
+              onNarrate={speak}
+              onStopNarrate={stopSpeaking}
+              onWarmUp={warmUp}
+              onReplayChange={(active) => {
+                setReplaying(active);
+                if (active) {
+                  setMapMode('operational');
+                } else {
+                  setReplayRouteId(null);
+                }
+              }}
+              onSelectVersion={(snap) => setReplayRouteId(snap.routeId)}
+            />
 
 
             {/* Sentinel */}

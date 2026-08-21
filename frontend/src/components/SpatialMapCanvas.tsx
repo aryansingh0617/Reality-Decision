@@ -18,19 +18,25 @@ import { Badge } from './ui';
 interface Props {
   state: RealityState | null;
   activePlanRouteId?: string | null;
+  replayRouteId?: string | null;
   onSelectEntity?: (entityId: string) => void;
 }
 
-export const SpatialMapCanvas: React.FC<Props> = ({ state, activePlanRouteId = 'route_r12', onSelectEntity }) => {
+export const SpatialMapCanvas: React.FC<Props> = ({ state, activePlanRouteId = 'route_r12', replayRouteId = null, onSelectEntity }) => {
   const [zoom, setZoom] = useState(1);
   const [layers, setLayers] = useState({ bridges: true, routes: true, vehicles: true, shelters: true, surgeZone: true });
   const [sel, setSel] = useState<any | null>(null);
 
+  const rec = replayRouteId ?? activePlanRouteId;
+  const replaying = replayRouteId != null;
   const curDepth = state?.current_water_depth_m ?? 0.35;
   const riseRate = state?.water_rise_rate_m_hr ?? 0.15;
-  const r12Op = state?.routes?.route_r12?.operational && !['UNAVAILABLE', 'UNCERTAIN'].includes(state?.routes?.route_r12?.status || '');
+  // During replay, infer bridge status from the recommended route of that version
+  const r12Op = replaying
+    ? replayRouteId !== 'route_r14'
+    : state?.routes?.route_r12?.operational && !['UNAVAILABLE', 'UNCERTAIN'].includes(state?.routes?.route_r12?.status || '');
   const b07Status = r12Op ? 'OPERATIONAL' : 'IMPASSABLE';
-  const r14Op = !!state?.routes?.route_r14?.operational;
+  const r14Op = replaying ? true : !!state?.routes?.route_r14?.operational;
   const highWater = curDepth > 0.5;
 
   const C = {
@@ -43,8 +49,8 @@ export const SpatialMapCanvas: React.FC<Props> = ({ state, activePlanRouteId = '
   const toggle = (k: keyof typeof layers) => setLayers((p) => ({ ...p, [k]: !p[k] }));
   const click = (n: any) => { setSel(n); onSelectEntity?.(n.id); };
 
-  const r12Rec = activePlanRouteId === 'route_r12';
-  const r14Rec = activePlanRouteId === 'route_r14';
+  const r12Rec = rec === 'route_r12';
+  const r14Rec = rec === 'route_r14';
   const r12Color = b07Status === 'OPERATIONAL' ? (r12Rec ? C.rec : C.alt) : C.blocked;
   const r14Color = r14Op ? (r14Rec ? C.rec : C.alt) : C.blocked;
 
@@ -125,7 +131,7 @@ export const SpatialMapCanvas: React.FC<Props> = ({ state, activePlanRouteId = '
                 />
               ) : r12Rec ? (
                 <motion.path
-                  key={`r12-rec-${activePlanRouteId}`}
+                  key={`r12-rec-${rec}`}
                   d="M 150 410 L 450 260 L 740 150"
                   fill="none"
                   stroke={r12Color}

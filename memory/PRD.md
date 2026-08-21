@@ -41,6 +41,10 @@ Transform the existing REALITY//DECISION app into a premium, $100M-startup-quali
 - P2: Further ≤768px phone reflow if needed.
 - P3: Optional live-mode enablement + token telemetry surfacing.
 
+## Iteration 5 (2026-06) — replay↔map sync + voice warm-up
+- **Timeline replay drives the map**: `RealityTimeline` fires `onSelectVersion`/`onReplayChange`; App feeds the selected version's route to `SpatialMapCanvas` via new `replayRouteId` prop. During replay the map switches to Operational and redraws each past route with the correct bridge status (v1 = R-12/bridge passable, v2 = R-14/bridge submerged), re-animating on each step. Verified.
+- **Voice warm-up**: `warmUp()` speaks a silent primer utterance on first user gesture (guided demo, timeline replay, Test voice) + 350ms settle so the first spoken line isn't clipped by cold-start.
+
 ## Iteration 4 (2026-06) — phone, autoplay, voice, interactive map
 - **Phone layout**: nav is horizontally scrollable; Command Center grid collapses to single column below `lg` (1024px); header controls drop progressively (Narration always visible). Situation/metrics reflow.
 - **Timeline autoplay**: `RealityTimeline` has a "Replay mission" button that auto-advances every recorded reality version and narrates each (cancel-safe via ref); appears when >1 state.

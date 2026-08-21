@@ -20,9 +20,12 @@ interface Props {
   currentVersion: number;
   onNarrate?: (text: string) => void;
   onStopNarrate?: () => void;
+  onSelectVersion?: (snap: RealitySnapshot) => void;
+  onReplayChange?: (active: boolean) => void;
+  onWarmUp?: () => void;
 }
 
-export const RealityTimeline: React.FC<Props> = ({ history, currentVersion, onNarrate, onStopNarrate }) => {
+export const RealityTimeline: React.FC<Props> = ({ history, currentVersion, onNarrate, onStopNarrate, onSelectVersion, onReplayChange, onWarmUp }) => {
   const [selected, setSelected] = useState<number>(currentVersion);
   const [playing, setPlaying] = useState(false);
   const playRef = useRef(false);
@@ -38,16 +41,21 @@ export const RealityTimeline: React.FC<Props> = ({ history, currentVersion, onNa
     playRef.current = false;
     setPlaying(false);
     onStopNarrate?.();
+    onReplayChange?.(false);
   };
 
   const startReplay = async () => {
     if (playRef.current || history.length <= 1) return;
     playRef.current = true;
     setPlaying(true);
+    onWarmUp?.();
+    onReplayChange?.(true);
+    await sleep(350);
     try {
       for (const h of history) {
         if (!playRef.current) break;
         setSelected(h.version);
+        onSelectVersion?.(h);
         const cause = h.cause && h.cause !== 'Mission initialized' ? h.cause + '.' : 'Mission initialized.';
         onNarrate?.(`Reality version ${h.version}. ${cause} The system recommends ${h.recommendation}, with ${h.confidence.toLowerCase()} confidence.`);
         if (!(await (async () => { await sleep(4600); return playRef.current; })())) break;
@@ -55,6 +63,7 @@ export const RealityTimeline: React.FC<Props> = ({ history, currentVersion, onNa
     } finally {
       playRef.current = false;
       setPlaying(false);
+      onReplayChange?.(false);
     }
   };
 
