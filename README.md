@@ -1,5 +1,6 @@
-# REALITY//DECISION:
-https://reality-decision-prototype.vercel.app/
+# REALITY//DECISION
+
+🚀 **Live Production Platform**: [https://reality-decision-prototype.vercel.app/](https://reality-decision-prototype.vercel.app/)
 
 ### Autonomous AI Decision Intelligence for Dynamic, Uncertain Environments
 
@@ -480,20 +481,21 @@ Fallback execution is explicitly marked as deterministic rather than falsely pre
 
 ### Frontend
 
-* React
+* React 19
 * Vite
 * Framer Motion
 * Operational dashboard
+* Tailwind CSS
 
 ### Backend
 
-* Python
+* Python 3.11+
 * FastAPI
 * Uvicorn
 
 ### AI
 
-* Google Gemini
+* Google Gemini (Gemini 3.5 Flash)
 * Function calling
 * Multi-turn tool interaction
 
