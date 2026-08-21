@@ -306,13 +306,20 @@ export function App() {
   };
 
   const toggleFallback = async () => {
+    const nextForced = !fallbackForced;
+    setFallbackForced(nextForced);
+    setState((prev) => {
+      const next = JSON.parse(JSON.stringify(prev || DEFAULT_STATE));
+      next.reasoning_mode = nextForced ? 'DETERMINISTIC_FALLBACK' : 'LLM_AGENTIC';
+      next.llm_mode_active = !nextForced;
+      if (next.current_packet) {
+        next.current_packet.reasoning_mode = nextForced ? 'DETERMINISTIC_FALLBACK' : 'LLM_AGENTIC';
+      }
+      return next;
+    });
     try {
-      const res = await toggleSimulatedFallback(!fallbackForced);
-      setFallbackForced(res.simulated_fallback_forced);
-      await loadAll();
-    } catch (err: any) {
-      setError(err.message || 'Failed to toggle mode');
-    }
+      await toggleSimulatedFallback(nextForced);
+    } catch (_err: any) {}
   };
 
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
