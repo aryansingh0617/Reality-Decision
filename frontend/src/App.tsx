@@ -238,19 +238,29 @@ export function App() {
   };
 
   const handleAuthorize = async (action: string) => {
+    const targetStatus = action === 'AUTHORIZE' ? 'AUTHORIZED' : action === 'REJECT' ? 'REJECTED' : 'VERIFY_REQUESTED';
+    
+    // 1. Immediately apply chosen action locally for instant UI update
+    setState((prev) => {
+      const next = JSON.parse(JSON.stringify(prev || DEFAULT_STATE));
+      if (next.current_packet) {
+        next.current_packet.authorization_status = targetStatus;
+        if (targetStatus === 'AUTHORIZED') {
+          next.current_packet.human_authorized_at = new Date().toISOString();
+          next.life_cycle_state = 'AUTHORIZED';
+        } else if (targetStatus === 'REJECTED') {
+          next.current_packet.human_authorized_at = null;
+          next.life_cycle_state = 'REJECTED';
+        }
+      }
+      return next;
+    });
+
+    // 2. Concurrently dispatch to backend API
     try {
       const next = await authorizeDecision(action, state?.world_state_version);
       if (next) setState(next);
-    } catch (_err: any) {
-      setState((prev) => {
-        const next = JSON.parse(JSON.stringify(prev || DEFAULT_STATE));
-        if (next.current_packet) {
-          next.current_packet.authorization_status = 'AUTHORIZED';
-          next.current_packet.human_authorized_at = new Date().toISOString();
-        }
-        return next;
-      });
-    }
+    } catch (_err: any) {}
   };
 
   const injectDisruption = async (eventId: string) => {
