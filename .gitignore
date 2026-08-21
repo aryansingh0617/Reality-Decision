@@ -47,7 +47,8 @@ backup/
 scratch/
 app/dist/
 *.env
-credentials.json
-*.pem
-*.key
-.credentials
+# Generated Docs
+*.pdf
+*.docx
+*.pptx
+
