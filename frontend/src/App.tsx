@@ -20,6 +20,7 @@ import { VerifyAutonomyPanel } from './components/VerifyAutonomyPanel';
 import { GuidedWalkthrough } from './components/GuidedWalkthrough';
 import { WorkflowStepper } from './components/WorkflowStepper';
 import { SentinelBar } from './components/SentinelBar';
+import { RealityTimeline, type RealitySnapshot } from './components/RealityTimeline';
 import { Metric } from './components/ui';
 
 import {
@@ -38,6 +39,8 @@ import {
   RefreshCw,
   PlayCircle,
   Square,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 
 type Section = 'command' | 'decision' | 'activity' | 'map' | 'analysis';
@@ -72,6 +75,25 @@ export function App() {
   const [fallbackForced, setFallbackForced] = useState(false);
   const [demo, setDemo] = useState<{ active: boolean; caption: string; step: number }>({ active: false, caption: '', step: 0 });
   const demoRef = useRef(false);
+  const [narrate, setNarrate] = useState(true);
+  const narrateRef = useRef(true);
+  const [history, setHistory] = useState<RealitySnapshot[]>([]);
+
+  const speak = (text: string) => {
+    if (!narrateRef.current || typeof window === 'undefined' || !window.speechSynthesis) return;
+    try {
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.rate = 1.02;
+      u.pitch = 1.0;
+      window.speechSynthesis.speak(u);
+    } catch {}
+  };
+  const stopSpeaking = () => {
+    try {
+      window.speechSynthesis?.cancel();
+    } catch {}
+  };
 
   const getIST = () =>
     new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date());
@@ -93,6 +115,34 @@ export function App() {
   useEffect(() => {
     loadAll();
   }, []);
+
+  // Record each reality version into a client-side timeline (honest — only what we observed)
+  useEffect(() => {
+    if (!state) return;
+    const v = state.world_state_version ?? 1;
+    const p = state.current_packet;
+    const snap: RealitySnapshot = {
+      version: v,
+      at: new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(new Date()),
+      cause: state.last_state_change || (v === 1 ? 'Mission initialized' : 'Reality updated'),
+      recommendation: p?.recommendation || '—',
+      routeId: p?.route_id || null,
+      confidence: p?.confidence || 'MEDIUM',
+      why: p?.why?.[0] || '',
+      authorization: p?.authorization_status || 'PENDING',
+      replanCount: state.replan_count ?? 0,
+      decisionId: p?.decision_id || '',
+    };
+    setHistory((prev) => {
+      const last = prev[prev.length - 1];
+      if (last && last.version === v) {
+        // Same reality version — update the snapshot in place
+        if (last.recommendation === snap.recommendation && last.authorization === snap.authorization && last.decisionId === snap.decisionId) return prev;
+        return [...prev.slice(0, -1), snap];
+      }
+      return [...prev, snap];
+    });
+  }, [state]);
 
   const runCycle = () => {
     setWorking(true);
@@ -141,6 +191,7 @@ export function App() {
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
   const stopDemo = () => {
     demoRef.current = false;
+    stopSpeaking();
     setDemo({ active: false, caption: '', step: 0 });
   };
   const runAutoDemo = async () => {
@@ -148,7 +199,10 @@ export function App() {
     demoRef.current = true;
     setSection('command');
     setError(null);
-    const say = (caption: string, step: number) => setDemo({ active: true, caption, step });
+    const say = (caption: string, step: number) => {
+      setDemo({ active: true, caption, step });
+      speak(caption);
+    };
     const alive = async (ms: number) => {
       await sleep(ms);
       return demoRef.current;
@@ -177,6 +231,7 @@ export function App() {
       if (!(await alive(4000))) return;
     } finally {
       demoRef.current = false;
+      stopSpeaking();
       setDemo({ active: false, caption: '', step: 0 });
     }
   };
@@ -288,6 +343,22 @@ export function App() {
                     <span key={n} className="h-1.5 rounded-full transition-all" style={{ width: n === demo.step ? 20 : 8, background: n <= demo.step ? 'var(--rd-accent)' : 'var(--rd-border-2)' }} />
                   ))}
                 </div>
+                <button
+                  onClick={() => {
+                    const next = !narrate;
+                    setNarrate(next);
+                    narrateRef.current = next;
+                    if (!next) stopSpeaking();
+                    else speak(demo.caption);
+                  }}
+                  data-testid="narration-toggle"
+                  aria-label={narrate ? 'Mute narration' : 'Unmute narration'}
+                  title={narrate ? 'Mute voice-over' : 'Enable voice-over'}
+                  className="rd-btn rd-btn-ghost shrink-0"
+                >
+                  {narrate ? <Volume2 className="h-3.5 w-3.5" /> : <VolumeX className="h-3.5 w-3.5" />}
+                  <span className="hidden md:inline">{narrate ? 'Voice on' : 'Muted'}</span>
+                </button>
                 <button onClick={stopDemo} data-testid="stop-demo-button" className="rd-btn rd-btn-ghost shrink-0"><Square className="h-3.5 w-3.5" /> Stop</button>
               </div>
             )}
@@ -336,6 +407,9 @@ export function App() {
                 <DecisionPacketView packet={packet} onAuthorize={handleAuthorize} routes={state?.routes} />
               </div>
             </div>
+
+            {/* Reality timeline */}
+            <RealityTimeline history={history} currentVersion={state?.world_state_version ?? 1} />
 
             {/* Sentinel */}
             <SentinelBar status={state?.sentinel_status} replanCount={state?.replan_count} version={state?.world_state_version} authorized={authorized} replanning={working} />
