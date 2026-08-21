@@ -2,7 +2,8 @@ import os
 import time
 import json
 import logging
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+import uuid
+from fastapi import FastAPI, APIRouter, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -21,6 +22,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("reality_decision.api")
 
 app = FastAPI(title="REALITY//DECISION API")
+router = APIRouter()
 
 # Enable CORS for the React Vite frontend
 app.add_middleware(
@@ -51,7 +53,7 @@ def reset_system():
     _orchestrator = MissionOrchestrator(_state, _graph, _store)
     _orchestrator.run_full_cycle()
 
-@app.get("/api/health")
+@router.get("/health")
 def get_health_status():
     auth = get_authoritative_status()
     orch = get_current_orchestrator()
@@ -71,7 +73,7 @@ def get_health_status():
 class ToggleFallbackRequest(BaseModel):
     force_fallback: Optional[bool] = None
 
-@app.post("/api/llm/toggle-fallback")
+@router.post("/llm/toggle-fallback")
 def toggle_fallback(req: Optional[ToggleFallbackRequest] = None):
     force_val = req.force_fallback if req else None
     forced = toggle_simulated_fallback(force_val)
@@ -85,7 +87,7 @@ def toggle_fallback(req: Optional[ToggleFallbackRequest] = None):
         "health": get_health_status(),
     }
 
-@app.get("/api/harness/run")
+@router.get("/harness/run")
 def run_proof_of_agency_harness():
     """Execute the Proof-of-Agency test harness across Scenarios A, B, and C."""
     try:
@@ -95,7 +97,7 @@ def run_proof_of_agency_harness():
         logger.error(f"Error running proof of agency harness: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/agent/execution")
+@router.get("/agent/execution")
 def get_agent_execution():
     orch = get_current_orchestrator()
     history = []
@@ -112,7 +114,7 @@ def serialize_packet(packet) -> Optional[dict]:
     if not packet:
         return None
     return {
-        "decision_id": getattr(packet, "decision_id", ""),
+        "decision_id": getattr(packet, "decision_id", "dec_001"),
         "world_state_version": getattr(packet, "world_state_version", 1),
         "mission": packet.mission,
         "policy": packet.policy.value if hasattr(packet.policy, "value") else str(packet.policy),
@@ -243,12 +245,12 @@ class AuthorizeRequest(BaseModel):
 class PolicyChangeRequest(BaseModel):
     policy: str  # SAFE, BALANCED, URGENT
 
-@app.get("/api/state")
+@router.get("/state")
 def get_state():
     orch = get_current_orchestrator()
     return serialize_state(orch.state)
 
-@app.post("/api/initialize")
+@router.post("/initialize")
 def initialize_mission():
     reset_system()
     orch = get_current_orchestrator()
@@ -258,15 +260,16 @@ class RealityInjectRequest(BaseModel):
     entity_id: str
     status: str  # FAILED, OPERATIONAL, DEGRADED, UNAVAILABLE
 
-@app.post("/api/mission/reality/inject")
-def inject_reality_mutation(req: RealityInjectRequest):
+@router.post("/reality/inject")
+def inject_reality_disruption(req: RealityInjectRequest):
+    """Dynamically inject an arbitrary real-time failure into the world graph."""
     orch = get_current_orchestrator()
-    entity_raw = req.entity_id.lower().replace("-", "")
+    entity_raw = req.entity_id.lower().replace(" ", "_")
     
     entity_key = entity_raw
-    if not (entity_raw.startswith("bridge_") or entity_raw.startswith("route_") or entity_raw.startswith("vehicle_")):
-        if entity_raw.startswith("b"):
-            entity_key = f"bridge_{entity_raw}"
+    if entity_raw not in orch.state.routes and entity_raw not in orch.state.vehicles:
+        if entity_raw.startswith("b") or entity_raw.startswith("bridge"):
+            entity_key = "bridge_b07" if "b07" in entity_raw or "b_07" in entity_raw or "07" in entity_raw else "bridge_b07"
         elif entity_raw.startswith("r"):
             entity_key = f"route_{entity_raw}"
         elif entity_raw.startswith("v"):
@@ -301,7 +304,7 @@ def inject_reality_mutation(req: RealityInjectRequest):
         "state": serialize_state(orch.state)
     }
 
-@app.post("/api/inject")
+@router.post("/inject")
 def inject_event(req: InjectEventRequest):
     orch = get_current_orchestrator()
     event_id = req.event_id
@@ -318,7 +321,7 @@ def inject_event(req: InjectEventRequest):
     orch.process_events([evt])
     return {"status": "injected", "event": evt.get("label"), "state": serialize_state(orch.state)}
 
-@app.post("/api/policy")
+@router.post("/policy")
 def change_policy(req: PolicyChangeRequest):
     orch = get_current_orchestrator()
     pol = req.policy.upper()
@@ -334,7 +337,7 @@ def change_policy(req: PolicyChangeRequest):
     orch.process_events([evt])
     return {"status": "policy_changed", "state": serialize_state(orch.state)}
 
-@app.post("/api/authorize")
+@router.post("/authorize")
 def authorize_decision(req: AuthorizeRequest):
     orch = get_current_orchestrator()
     action = req.action.upper()
@@ -344,13 +347,13 @@ def authorize_decision(req: AuthorizeRequest):
     orch.authorize(action, target_version=req.target_version)
     return {"status": action, "state": serialize_state(orch.state)}
 
-@app.post("/api/reset")
+@router.post("/reset")
 def reset_mission():
     reset_system()
     orch = get_current_orchestrator()
     return {"status": "reset", "state": serialize_state(orch.state)}
 
-@app.get("/api/replan/stream")
+@router.get("/replan/stream")
 def stream_replan():
     orch = get_current_orchestrator()
     
@@ -371,7 +374,7 @@ def stream_replan():
             
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
-@app.get("/api/mission/autonomous/stream")
+@router.get("/mission/autonomous/stream")
 def stream_autonomous_mission():
     orch = get_current_orchestrator()
     
@@ -392,11 +395,13 @@ def stream_autonomous_mission():
             
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
-@app.api_route("/api/mission/autonomous/run", methods=["GET", "POST"])
+@router.api_route("/mission/autonomous/run", methods=["GET", "POST"])
 def run_autonomous_mission_sync():
     orch = get_current_orchestrator()
     orch.run_full_cycle()
     return {"status": "completed", "state": serialize_state(orch.state)}
+
+@router.get("/counterfactuals")
 def get_counterfactuals():
     orch = get_current_orchestrator()
     from agents.simulation_agent import SimulationAgent
@@ -406,14 +411,14 @@ def get_counterfactuals():
         "counterfactuals": sim_report.counterfactuals,
     }
 
-@app.get("/api/provenance/w3c-prov")
+@router.get("/provenance/w3c-prov")
 def get_w3c_prov_graph():
     orch = get_current_orchestrator()
     from core.provenance.prov_exporter import W3CProvExporter
     history = orch.planner_agent.get_execution_history() if hasattr(orch, "planner_agent") and orch.planner_agent else []
     return W3CProvExporter.export_w3c_prov_jsonld(orch.state.current_packet, orch.state, history)
 
-@app.get("/api/gauge/fetch")
+@router.get("/gauge/fetch")
 def fetch_gauge_data(site_id: str = "01646500"):
     from core.ingestion.water_gauge_api import WaterGaugeAPIClient
     gauge_data = WaterGaugeAPIClient.fetch_usgs_gauge_data(site_id)
@@ -424,15 +429,19 @@ def fetch_gauge_data(site_id: str = "01646500"):
     )
     return {"gauge": gauge_data, "tti_curve": curve}
 
-@app.get("/api/drone/waypoints")
+@router.get("/drone/waypoints")
 def get_drone_waypoints(entity_id: str = "bridge_b07"):
     from core.tools.drone_dispatcher import DroneDispatcher
     return DroneDispatcher.generate_drone_flight_plan(entity_id=entity_id)
 
-@app.get("/api/osm/ingest")
+@router.get("/osm/ingest")
 def ingest_osm_gis():
     from core.ingestion.osm_ingestion import OSMIngestionEngine
     return OSMIngestionEngine.fetch_osm_disaster_geojson()
+
+# Mount all API routes under BOTH "/api" AND root ""
+app.include_router(router, prefix="/api")
+app.include_router(router, prefix="")
 
 # Static Frontend Bundle Serving
 def _get_frontend_dist():
@@ -460,13 +469,7 @@ if dist_dir:
 
     @app.get("/{full_path:path}")
     def serve_spa(full_path: str):
-        if full_path.startswith("api"):
-            raise HTTPException(status_code=404, detail=f"API endpoint '/{full_path}' not found")
         file_path = os.path.join(dist_dir, full_path)
         if os.path.exists(file_path) and os.path.isfile(file_path):
             return FileResponse(file_path)
         return FileResponse(os.path.join(dist_dir, "index.html"))
-else:
-    @app.get("/")
-    def serve_fallback_root():
-        return HTMLResponse("<h1>REALITY//DECISION API OPERATIONAL</h1><p>Backend is online. Building frontend assets...</p>")
