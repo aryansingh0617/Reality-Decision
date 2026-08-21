@@ -37,8 +37,6 @@ interface WorkflowStepperProps {
 }
 
 export const WorkflowStepper: React.FC<WorkflowStepperProps> = ({ currentIndex, working, workingLabel }) => {
-  const progressPercent = Math.min(100, Math.max(0, (currentIndex / (STAGES.length - 1)) * 100));
-
   return (
     <div className="rd-panel px-5 py-3.5">
       <div className="flex items-center justify-between mb-3">
@@ -59,17 +57,8 @@ export const WorkflowStepper: React.FC<WorkflowStepperProps> = ({ currentIndex, 
         </div>
       </div>
 
-      <div className="relative w-full overflow-x-auto pb-1">
-        <div className="relative flex items-start justify-between min-w-[720px] px-6">
-          {/* Continuous background track line */}
-          <div className="absolute top-[16px] left-[50px] right-[50px] h-[2px] bg-[var(--rd-border-2)] pointer-events-none" />
-          
-          {/* Active progress fill line */}
-          <div
-            className="absolute top-[16px] left-[50px] h-[2px] bg-[var(--rd-success)] transition-all duration-500 pointer-events-none"
-            style={{ width: `calc((100% - 100px) * ${progressPercent / 100})` }}
-          />
-
+      <div className="w-full overflow-x-auto pb-1">
+        <div className="flex items-center justify-between min-w-[720px] px-2">
           {STAGES.map((s, i) => {
             const Icon = s.icon;
             const done = i < currentIndex;
@@ -78,41 +67,52 @@ export const WorkflowStepper: React.FC<WorkflowStepperProps> = ({ currentIndex, 
             const isWorkingActive = active && working;
 
             return (
-              <div key={s.key} className="relative z-10 flex flex-col items-center min-w-[75px] max-w-[95px] flex-1">
-                {/* Circle Icon */}
-                <div
-                  className="flex h-8 w-8 items-center justify-center rounded-full transition-all duration-300"
-                  style={{
-                    color: fg,
-                    background: active ? 'var(--rd-accent-soft)' : done ? 'var(--rd-success-soft)' : 'var(--rd-panel)',
-                    border: `2px solid ${active ? 'var(--rd-accent)' : done ? 'var(--rd-success)' : 'var(--rd-border)'}`,
-                    boxShadow: active ? '0 0 0 4px rgba(91,141,239,0.18)' : 'none',
-                  }}
-                >
-                  {done ? (
-                    <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-                  ) : (
-                    <Icon className={`w-3.5 h-3.5 ${isWorkingActive ? 'animate-pulse' : ''}`} />
-                  )}
+              <React.Fragment key={s.key}>
+                {/* Step Node */}
+                <div className="flex flex-col items-center min-w-[65px] max-w-[90px] shrink-0">
+                  <div
+                    className="flex h-8 w-8 items-center justify-center rounded-full transition-all duration-300"
+                    style={{
+                      color: fg,
+                      border: `2px solid ${active ? 'var(--rd-accent)' : done ? 'var(--rd-success)' : 'var(--rd-border)'}`,
+                      background: active ? '#101c2e' : done ? '#0c2219' : '#141a1f',
+                      boxShadow: active ? '0 0 0 4px rgba(91,141,239,0.18)' : 'none',
+                    }}
+                  >
+                    {done ? (
+                      <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                    ) : (
+                      <Icon className={`w-3.5 h-3.5 ${isWorkingActive ? 'animate-pulse' : ''}`} />
+                    )}
+                  </div>
+
+                  <div className="mt-2 text-center w-full">
+                    <div
+                      className="text-[11px] font-medium leading-tight truncate"
+                      style={{ color: active ? 'var(--rd-text)' : done ? 'var(--rd-text-2)' : 'var(--rd-text-3)' }}
+                      title={s.label}
+                    >
+                      {s.label}
+                    </div>
+                    <div
+                      className="text-[9.5px] font-mono leading-tight mt-0.5 truncate"
+                      style={{ color: active ? 'var(--rd-accent)' : 'var(--rd-text-3)', opacity: active ? 1 : 0.6 }}
+                    >
+                      {active ? s.hint : s.key}
+                    </div>
+                  </div>
                 </div>
 
-                {/* Uniform text container */}
-                <div className="mt-2 text-center w-full px-1">
+                {/* Connector Line strictly between circles */}
+                {i < STAGES.length - 1 && (
                   <div
-                    className="text-[11px] font-medium leading-tight truncate"
-                    style={{ color: active ? 'var(--rd-text)' : done ? 'var(--rd-text-2)' : 'var(--rd-text-3)' }}
-                    title={s.label}
-                  >
-                    {s.label}
-                  </div>
-                  <div
-                    className="text-[9.5px] font-mono leading-tight mt-0.5 truncate"
-                    style={{ color: active ? 'var(--rd-accent)' : 'var(--rd-text-3)', opacity: active ? 1 : 0.6 }}
-                  >
-                    {active ? s.hint : s.key}
-                  </div>
-                </div>
-              </div>
+                    className="flex-1 mx-2 mb-6 h-[2px] rounded-full transition-all duration-300"
+                    style={{
+                      background: i < currentIndex ? 'var(--rd-success)' : 'var(--rd-border-2)',
+                    }}
+                  />
+                )}
+              </React.Fragment>
             );
           })}
         </div>
