@@ -5,292 +5,186 @@ import {
   ZoomIn,
   ZoomOut,
   RotateCcw,
-  ShieldAlert,
-  Radio,
   Truck,
   Home,
   AlertTriangle,
   X,
-  Compass,
+  MapPin,
+  Navigation,
 } from 'lucide-react';
 import type { RealityState } from '../api';
+import { Badge } from './ui';
 
-interface SpatialMapCanvasProps {
+interface Props {
   state: RealityState | null;
   activePlanRouteId?: string | null;
   onSelectEntity?: (entityId: string) => void;
 }
 
-export const SpatialMapCanvas: React.FC<SpatialMapCanvasProps> = ({
-  state,
-  activePlanRouteId = 'route_r12',
-  onSelectEntity,
-}) => {
+export const SpatialMapCanvas: React.FC<Props> = ({ state, activePlanRouteId = 'route_r12', onSelectEntity }) => {
   const [zoom, setZoom] = useState(1);
-  const [activeLayers, setActiveLayers] = useState({
-    bridges: true,
-    routes: true,
-    vehicles: true,
-    shelters: true,
-    surgeZone: true,
-  });
-  const [selectedNode, setSelectedNode] = useState<any | null>(null);
+  const [layers, setLayers] = useState({ bridges: true, routes: true, vehicles: true, shelters: true, surgeZone: true });
+  const [sel, setSel] = useState<any | null>(null);
 
   const curDepth = state?.current_water_depth_m ?? 0.35;
   const riseRate = state?.water_rise_rate_m_hr ?? 0.15;
-  const isR12Operational = state?.routes?.route_r12?.operational && state?.routes?.route_r12?.status !== 'UNAVAILABLE' && state?.routes?.route_r12?.status !== 'UNCERTAIN';
-  const b07Status = isR12Operational ? 'OPERATIONAL' : 'IMPASSABLE';
-  const r14Status = state?.routes?.route_r14?.operational ? 'OPERATIONAL' : 'IMPASSABLE';
+  const r12Op = state?.routes?.route_r12?.operational && !['UNAVAILABLE', 'UNCERTAIN'].includes(state?.routes?.route_r12?.status || '');
+  const b07Status = r12Op ? 'OPERATIONAL' : 'IMPASSABLE';
+  const r14Op = !!state?.routes?.route_r14?.operational;
+  const highWater = curDepth > 0.5;
 
-  const toggleLayer = (key: keyof typeof activeLayers) => {
-    setActiveLayers((prev) => ({ ...prev, [key]: !prev[key] }));
+  const C = {
+    rec: 'var(--rd-success)',
+    alt: 'var(--rd-accent)',
+    blocked: 'var(--rd-danger)',
+    muted: 'var(--rd-text-3)',
   };
 
-  const handleNodeClick = (node: any) => {
-    setSelectedNode(node);
-    if (onSelectEntity) onSelectEntity(node.id);
-  };
+  const toggle = (k: keyof typeof layers) => setLayers((p) => ({ ...p, [k]: !p[k] }));
+  const click = (n: any) => { setSel(n); onSelectEntity?.(n.id); };
+
+  const r12Rec = activePlanRouteId === 'route_r12';
+  const r14Rec = activePlanRouteId === 'route_r14';
+  const r12Color = b07Status === 'OPERATIONAL' ? (r12Rec ? C.rec : C.alt) : C.blocked;
+  const r14Color = r14Op ? (r14Rec ? C.rec : C.alt) : C.blocked;
 
   return (
-    <div className="relative w-full h-full bg-[#0d1117] border border-[#222b34] rounded-lg overflow-hidden flex flex-col select-none">
-      {/* Top Map Bar */}
-      <div className="px-4 py-2.5 bg-[#14191e] border-b border-[#222b34] flex items-center justify-between font-mono text-xs z-10">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 text-[#00f2fe] font-bold">
-            <Compass className="w-4 h-4 animate-spin-slow" />
-            <span>BRAHMAPUTRA REGIONAL TACTICAL CANVAS</span>
-          </div>
-          <span className="text-[#8a9aaa]">|</span>
-          <span className="text-[#8a9aaa]">LAT: <strong className="text-[#e8edf2]">26.1833° N</strong></span>
-          <span className="text-[#8a9aaa]">LON: <strong className="text-[#e8edf2]">91.7333° E</strong></span>
+    <div className="relative flex h-full flex-col overflow-hidden rd-panel">
+      {/* Map bar */}
+      <div className="z-10 flex shrink-0 items-center justify-between border-b border-[var(--rd-border)] px-4 py-2.5">
+        <div className="flex items-center gap-2.5">
+          <MapPin className="h-4 w-4" style={{ color: 'var(--rd-accent)' }} />
+          <span className="t-h3" style={{ color: 'var(--rd-text)' }}>Operational Map</span>
+          <span className="t-tech hidden md:inline">Brahmaputra region · 26.18°N 91.73°E</span>
         </div>
-
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-[#07090b] border border-[#222b34] text-[10px]">
-            <span className="text-[#8a9aaa]">Water Elevation:</span>
-            <span className={curDepth > 0.5 ? 'text-[#ef4444] font-bold' : 'text-[#2ecc71] font-bold'}>
-              {curDepth}m (+{riseRate}m/h)
-            </span>
+          <div className="flex items-center gap-1.5 rounded-md px-2.5 py-1" style={{ background: 'var(--rd-bg)', border: '1px solid var(--rd-border)' }}>
+            <span className="t-label">Water</span>
+            <span className="t-tech" style={{ color: highWater ? 'var(--rd-danger)' : 'var(--rd-success)' }}>{curDepth}m · +{riseRate}/h</span>
           </div>
-          <div className="flex items-center gap-1.5 text-[10px] text-[#2ecc71]">
-            <span className="w-2 h-2 rounded-full bg-[#2ecc71] animate-ping" />
-            <span>LIVE GIS FEED</span>
+          <div className="hidden items-center gap-1.5 sm:flex">
+            <span className="relative inline-flex h-2 w-2">
+              <span className="absolute inset-0 rounded-full rd-ping" style={{ background: 'var(--rd-success)' }} />
+              <span className="rd-dot relative" style={{ width: 8, height: 8, background: 'var(--rd-success)' }} />
+            </span>
+            <span className="t-tech" style={{ color: 'var(--rd-success)' }}>live feed</span>
           </div>
         </div>
       </div>
 
-      {/* Main SVG Spatial Canvas */}
-      <div className="relative flex-1 bg-dot-grid overflow-hidden flex items-center justify-center cursor-crosshair">
-        <motion.div
-          animate={{ scale: zoom }}
-          transition={{ type: 'spring', stiffness: 200, damping: 25 }}
-          className="relative w-[900px] h-[550px]"
-        >
-          {/* Hydrographic Surge Danger Zone Overlay */}
-          {activeLayers.surgeZone && (
-            <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-25">
+      {/* Canvas */}
+      <div className="relative flex flex-1 items-center justify-center overflow-hidden rd-grid-bg">
+        <motion.div animate={{ scale: zoom }} transition={{ type: 'spring', stiffness: 200, damping: 25 }} className="relative h-[520px] w-[880px]">
+          {/* Surge zone */}
+          {layers.surgeZone && (
+            <svg className="pointer-events-none absolute inset-0 h-full w-full">
               <defs>
-                <pattern id="floodGrid" width="20" height="20" patternUnits="userSpaceOnUse">
-                  <path d="M 20 0 L 0 20 M 0 0 L 20 20" fill="none" stroke="#ef4444" strokeWidth="0.5" />
-                </pattern>
+                <radialGradient id="surge" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%" stopColor="rgba(229,100,94,0.14)" />
+                  <stop offset="100%" stopColor="rgba(229,100,94,0)" />
+                </radialGradient>
               </defs>
-              <ellipse cx="480" cy="270" rx="220" ry="140" fill="url(#floodGrid)" stroke="#ef4444" strokeWidth="1.5" />
-              <text x="400" y="260" fill="#ef4444" fontSize="10" fontFamily="monospace" fontWeight="bold">
-                HIGH SURGE DANGER ZONE (TTI PREDICTED &lt; 30m)
+              <ellipse cx="470" cy="260" rx="230" ry="150" fill="url(#surge)" stroke="rgba(229,100,94,0.35)" strokeWidth="1" strokeDasharray="4 5" />
+              <text x="300" y="130" fill="rgba(229,100,94,0.75)" fontSize="10.5" fontFamily="Geist, sans-serif" fontWeight="600" letterSpacing="0.05em">
+                HIGH SURGE ZONE
               </text>
             </svg>
           )}
 
-          {/* SVG Highways & Detours */}
-          <svg className="absolute inset-0 w-full h-full pointer-events-none">
-            {/* Route R-12 (Fast Corridor via B-07) */}
-            {activeLayers.routes && (
-              <g>
-                <path
-                  d="M 150 420 L 450 270 L 750 150"
-                  fill="none"
-                  stroke={b07Status === 'OPERATIONAL' ? '#00f2fe' : '#ef4444'}
-                  strokeWidth={activePlanRouteId === 'route_r12' ? '5' : '2.5'}
-                  strokeDasharray={b07Status === 'OPERATIONAL' ? 'none' : '6 4'}
-                  className="transition-all duration-300"
-                />
-                <text x="320" y="320" fill={b07Status === 'OPERATIONAL' ? '#00f2fe' : '#ef4444'} fontSize="11" fontFamily="monospace" fontWeight="bold">
-                  Route R-12 (Fast Corridor)
-                </text>
-              </g>
-            )}
-
-            {/* Route R-14 (Safe Bypass Detour) */}
-            {activeLayers.routes && (
-              <g>
-                <path
-                  d="M 150 420 Q 300 480 480 450 T 750 150"
-                  fill="none"
-                  stroke={r14Status === 'OPERATIONAL' ? '#2ecc71' : '#f59e0b'}
-                  strokeWidth={activePlanRouteId === 'route_r14' ? '5' : '2.5'}
-                />
-                <text x="380" y="470" fill="#2ecc71" fontSize="11" fontFamily="monospace" fontWeight="bold">
-                  Route R-14 (Safe Bypass Detour)
-                </text>
-              </g>
-            )}
-          </svg>
-
-          {/* Interactive Spatial Markers */}
-
-          {/* 1. Origin Depot / Fleet Hub */}
-          <motion.div
-            whileHover={{ scale: 1.1 }}
-            onClick={() => handleNodeClick({ id: 'depot_guwahati', name: 'Evacuation Fleet Depot', type: 'Depot', status: 'OPERATIONAL', lat: 26.15, lon: 91.70 })}
-            className="absolute top-[400px] left-[130px] p-2 bg-[#14191e] border-2 border-[#00f2fe] rounded-lg cursor-pointer shadow-lg flex items-center gap-2 group z-10"
-          >
-            <div className="w-7 h-7 rounded bg-[#00f2fe]/20 flex items-center justify-center text-[#00f2fe]">
-              <Truck className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="text-xs font-bold text-[#e8edf2] group-hover:text-[#00f2fe] transition-colors">FLEET DEPOT (V-02)</div>
-              <div className="text-[9px] font-mono text-[#8a9aaa]">Cap: 10Slots | Ready</div>
-            </div>
-          </motion.div>
-
-          {/* 2. Critical Bridge B-07 Node */}
-          {activeLayers.bridges && (
-            <motion.div
-              whileHover={{ scale: 1.1 }}
-              onClick={() => handleNodeClick({ id: 'bridge_b07', name: 'Bridge B-07 (Tributary)', type: 'Bridge', status: b07Status, lat: 26.18, lon: 91.73 })}
-              className={`absolute top-[250px] left-[435px] p-2.5 rounded-lg border-2 cursor-pointer shadow-xl z-20 transition-all ${
-                b07Status === 'OPERATIONAL'
-                  ? 'bg-[#14191e] border-[#00f2fe] cyan-glow'
-                  : 'bg-[#ef4444]/15 border-[#ef4444] crimson-glow'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <div className={`w-8 h-8 rounded flex items-center justify-center ${b07Status === 'OPERATIONAL' ? 'bg-[#00f2fe]/20 text-[#00f2fe]' : 'bg-[#ef4444]/20 text-[#ef4444]'}`}>
-                  {b07Status === 'OPERATIONAL' ? <ShieldAlert className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4 animate-bounce" />}
-                </div>
-                <div>
-                  <div className="text-xs font-bold text-[#e8edf2]">BRIDGE B-07</div>
-                  <div className={`text-[10px] font-mono font-bold ${b07Status === 'OPERATIONAL' ? 'text-[#00f2fe]' : 'text-[#ef4444]'}`}>
-                    {b07Status === 'OPERATIONAL' ? 'PASSABLE (TTI: 112m)' : 'SUBMERGED / IMPASSABLE'}
-                  </div>
-                </div>
-              </div>
-            </motion.div>
+          {/* Routes */}
+          {layers.routes && (
+            <svg className="pointer-events-none absolute inset-0 h-full w-full">
+              {/* R-14 alt/detour */}
+              <path d="M 150 410 Q 300 470 470 440 T 740 150" fill="none" stroke={r14Color} strokeWidth={r14Rec ? 4.5 : 2.5} strokeLinecap="round" opacity={r14Rec ? 1 : 0.75} />
+              {/* R-12 fast corridor */}
+              <path
+                d="M 150 410 L 450 260 L 740 150"
+                fill="none"
+                stroke={r12Color}
+                strokeWidth={r12Rec ? 4.5 : 2.5}
+                strokeLinecap="round"
+                strokeDasharray={b07Status === 'OPERATIONAL' ? (r12Rec ? '10 8' : 'none') : '6 6'}
+                opacity={r12Rec ? 1 : 0.75}
+                style={r12Rec && b07Status === 'OPERATIONAL' ? { animation: 'rd-dash 1s linear infinite' } : undefined}
+              />
+              <text x="300" y="335" fill={r12Color} fontSize="10.5" fontFamily="Geist, sans-serif" fontWeight="600">R-12 · Fast corridor</text>
+              <text x="360" y="462" fill={r14Color} fontSize="10.5" fontFamily="Geist, sans-serif" fontWeight="600">R-14 · Safe bypass</text>
+            </svg>
           )}
 
-          {/* 3. Destination Shelter S-04 Node */}
-          {activeLayers.shelters && (
-            <motion.div
-              whileHover={{ scale: 1.1 }}
-              onClick={() => handleNodeClick({ id: 'shelter_s04', name: 'Shelter S-04 (Silchar)', type: 'Shelter', status: 'OPERATIONAL', lat: 26.22, lon: 91.78 })}
-              className="absolute top-[130px] left-[730px] p-2.5 bg-[#14191e] border-2 border-[#2ecc71] rounded-lg cursor-pointer shadow-xl z-10 flex items-center gap-2 group"
-            >
-              <div className="w-8 h-8 rounded bg-[#2ecc71]/20 flex items-center justify-center text-[#2ecc71]">
-                <Home className="w-4 h-4" />
-              </div>
-              <div>
-                <div className="text-xs font-bold text-[#e8edf2] group-hover:text-[#2ecc71] transition-colors">SHELTER S-04</div>
-                <div className="text-[10px] font-mono text-[#2ecc71]">Occ: 25/100 | Open</div>
-              </div>
-            </motion.div>
+          {/* Depot */}
+          <MapNode x={128} y={388} tone={C.alt} icon={<Truck className="h-4 w-4" />} title="Fleet depot V-02" sub="10 seats · Ready" onClick={() => click({ id: 'depot', name: 'Fleet Depot (V-02)', type: 'Depot', status: 'OPERATIONAL', lat: 26.15, lon: 91.7 })} />
+
+          {/* Bridge */}
+          {layers.bridges && (
+            <MapNode
+              x={432}
+              y={238}
+              tone={b07Status === 'OPERATIONAL' ? C.alt : C.blocked}
+              icon={b07Status === 'OPERATIONAL' ? <Navigation className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
+              title="Bridge B-07"
+              sub={b07Status === 'OPERATIONAL' ? 'Passable · TTI 112m' : 'Submerged · impassable'}
+              highlight={b07Status !== 'OPERATIONAL'}
+              onClick={() => click({ id: 'bridge_b07', name: 'Bridge B-07', type: 'Bridge', status: b07Status, lat: 26.18, lon: 91.73 })}
+            />
           )}
 
-          {/* Recon Drone Flight Orbit Path Animation */}
-          <div className="absolute top-[210px] left-[400px] pointer-events-none">
-            <div className="relative w-[130px] h-[130px] border border-dashed border-[#00f2fe]/40 rounded-full animate-spin-slow flex items-center justify-center">
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 p-1 bg-[#00f2fe] rounded-full shadow-md">
-                <Radio className="w-3 h-3 text-[#07090b]" />
-              </div>
-            </div>
-          </div>
+          {/* Shelter */}
+          {layers.shelters && (
+            <MapNode x={648} y={132} tone={C.rec} icon={<Home className="h-4 w-4" />} title="Shelter S-04" sub="25/100 · Open" onClick={() => click({ id: 'shelter_s04', name: 'Shelter S-04', type: 'Shelter', status: 'OPERATIONAL', lat: 26.22, lon: 91.78 })} />
+          )}
         </motion.div>
 
-        {/* Map Control Buttons */}
-        <div className="absolute bottom-4 left-4 flex items-center gap-2 bg-[#14191e] border border-[#222b34] p-1.5 rounded-lg shadow-xl z-20">
-          <button
-            onClick={() => setZoom((z) => Math.min(1.5, z + 0.1))}
-            className="p-1.5 rounded text-[#8a9aaa] hover:text-[#e8edf2] hover:bg-[#1b222a] transition-all cursor-pointer"
-            title="Zoom In"
-          >
-            <ZoomIn className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => setZoom((z) => Math.max(0.8, z - 0.1))}
-            className="p-1.5 rounded text-[#8a9aaa] hover:text-[#e8edf2] hover:bg-[#1b222a] transition-all cursor-pointer"
-            title="Zoom Out"
-          >
-            <ZoomOut className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => setZoom(1)}
-            className="p-1.5 rounded text-[#8a9aaa] hover:text-[#e8edf2] hover:bg-[#1b222a] transition-all cursor-pointer"
-            title="Reset Zoom"
-          >
-            <RotateCcw className="w-4 h-4" />
-          </button>
+        {/* Zoom controls */}
+        <div className="absolute bottom-4 left-4 z-20 flex items-center gap-1 rounded-lg p-1" style={{ background: 'var(--rd-panel)', border: '1px solid var(--rd-border)' }}>
+          {[
+            { i: <ZoomIn className="h-4 w-4" />, f: () => setZoom((z) => Math.min(1.5, z + 0.1)), t: 'Zoom in' },
+            { i: <ZoomOut className="h-4 w-4" />, f: () => setZoom((z) => Math.max(0.8, z - 0.1)), t: 'Zoom out' },
+            { i: <RotateCcw className="h-4 w-4" />, f: () => setZoom(1), t: 'Reset' },
+          ].map((b, i) => (
+            <button key={i} onClick={b.f} title={b.t} aria-label={b.t} className="rounded-md p-1.5 text-[var(--rd-text-3)] transition-colors hover:bg-[var(--rd-hover)] hover:text-[var(--rd-text)]">
+              {b.i}
+            </button>
+          ))}
         </div>
 
-        {/* GIS Layer Control Overlay */}
-        <div className="absolute top-4 right-4 bg-[#14191e] border border-[#222b34] p-3 rounded-lg shadow-xl z-20 w-48 text-xs font-mono">
-          <div className="text-[11px] font-bold text-[#8a9aaa] uppercase tracking-wider mb-2 flex items-center gap-1.5">
-            <Layers className="w-3.5 h-3.5 text-[#00f2fe]" />
-            <span>GIS LAYERS</span>
-          </div>
+        {/* Legend / layers */}
+        <div className="absolute right-4 top-4 z-20 w-44 rounded-lg p-3" style={{ background: 'var(--rd-panel)', border: '1px solid var(--rd-border)' }}>
+          <div className="mb-2.5 flex items-center gap-1.5"><Layers className="h-3.5 w-3.5" style={{ color: 'var(--rd-text-3)' }} /><span className="t-label">Layers</span></div>
           <div className="space-y-1.5">
-            <label className="flex items-center justify-between text-[#e8edf2] cursor-pointer hover:text-[#00f2fe]">
-              <span>Bridges</span>
-              <input type="checkbox" checked={activeLayers.bridges} onChange={() => toggleLayer('bridges')} className="accent-[#00f2fe]" />
-            </label>
-            <label className="flex items-center justify-between text-[#e8edf2] cursor-pointer hover:text-[#00f2fe]">
-              <span>Corridors</span>
-              <input type="checkbox" checked={activeLayers.routes} onChange={() => toggleLayer('routes')} className="accent-[#00f2fe]" />
-            </label>
-            <label className="flex items-center justify-between text-[#e8edf2] cursor-pointer hover:text-[#00f2fe]">
-              <span>Fleets</span>
-              <input type="checkbox" checked={activeLayers.vehicles} onChange={() => toggleLayer('vehicles')} className="accent-[#00f2fe]" />
-            </label>
-            <label className="flex items-center justify-between text-[#e8edf2] cursor-pointer hover:text-[#00f2fe]">
-              <span>Shelters</span>
-              <input type="checkbox" checked={activeLayers.shelters} onChange={() => toggleLayer('shelters')} className="accent-[#00f2fe]" />
-            </label>
-            <label className="flex items-center justify-between text-[#e8edf2] cursor-pointer hover:text-[#00f2fe]">
-              <span>Surge Zone</span>
-              <input type="checkbox" checked={activeLayers.surgeZone} onChange={() => toggleLayer('surgeZone')} className="accent-[#00f2fe]" />
-            </label>
+            {([['bridges', 'Bridges'], ['routes', 'Routes'], ['vehicles', 'Fleets'], ['shelters', 'Shelters'], ['surgeZone', 'Surge zone']] as const).map(([k, lbl]) => (
+              <label key={k} className="flex cursor-pointer items-center justify-between text-[12px]" style={{ color: 'var(--rd-text-2)' }}>
+                <span>{lbl}</span>
+                <input type="checkbox" checked={layers[k]} onChange={() => toggle(k)} style={{ accentColor: 'var(--rd-accent)' }} />
+              </label>
+            ))}
+          </div>
+          <div className="mt-3 space-y-1.5 border-t border-[var(--rd-border)] pt-2.5">
+            <LegendRow color={C.rec} label="Recommended" />
+            <LegendRow color={C.alt} label="Alternative" />
+            <LegendRow color={C.blocked} label="Blocked" />
           </div>
         </div>
       </div>
 
-      {/* Selected Node Detail Drawer */}
+      {/* Node detail */}
       <AnimatePresence>
-        {selectedNode && (
+        {sel && (
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            className="absolute bottom-4 right-4 bg-[#14191e] border border-[#2e3844] p-4 rounded-lg shadow-2xl z-30 w-80 text-xs"
+            exit={{ opacity: 0, y: 12 }}
+            className="absolute bottom-4 right-4 z-30 w-72 rounded-lg p-4"
+            style={{ background: 'var(--rd-elevated)', border: '1px solid var(--rd-border-2)', boxShadow: 'var(--rd-shadow)' }}
           >
-            <div className="flex items-center justify-between pb-2 border-b border-[#222b34] mb-3">
-              <div className="font-bold text-[#e8edf2]">{selectedNode.name}</div>
-              <button onClick={() => setSelectedNode(null)} className="text-[#8a9aaa] hover:text-[#e8edf2] cursor-pointer">
-                <X className="w-4 h-4" />
-              </button>
+            <div className="mb-3 flex items-center justify-between border-b border-[var(--rd-border)] pb-2.5">
+              <span className="t-h3" style={{ color: 'var(--rd-text)' }}>{sel.name}</span>
+              <button onClick={() => setSel(null)} aria-label="Close" className="text-[var(--rd-text-3)] hover:text-[var(--rd-text)]"><X className="h-4 w-4" /></button>
             </div>
-            <div className="space-y-2 font-mono text-[11px]">
-              <div className="flex justify-between">
-                <span className="text-[#8a9aaa]">Node Type:</span>
-                <span className="text-[#00f2fe] font-bold">{selectedNode.type}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[#8a9aaa]">Operational Status:</span>
-                <span className={selectedNode.status === 'OPERATIONAL' ? 'text-[#2ecc71] font-bold' : 'text-[#ef4444] font-bold'}>
-                  {selectedNode.status}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[#8a9aaa]">Coordinates:</span>
-                <span className="text-[#e8edf2]">{selectedNode.lat}°, {selectedNode.lon}°</span>
-              </div>
+            <div className="space-y-2">
+              <Row k="Type" v={sel.type} />
+              <Row k="Status"><Badge tone={sel.status === 'OPERATIONAL' ? 'success' : 'danger'}>{sel.status}</Badge></Row>
+              <Row k="Coordinates" v={`${sel.lat}°, ${sel.lon}°`} />
             </div>
           </motion.div>
         )}
@@ -298,3 +192,32 @@ export const SpatialMapCanvas: React.FC<SpatialMapCanvasProps> = ({
     </div>
   );
 };
+
+const MapNode: React.FC<{ x: number; y: number; tone: string; icon: React.ReactNode; title: string; sub: string; onClick: () => void; highlight?: boolean }> = ({ x, y, tone, icon, title, sub, onClick, highlight }) => (
+  <motion.button
+    whileHover={{ scale: 1.05 }}
+    onClick={onClick}
+    className="group absolute z-10 flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left"
+    style={{ top: y, left: x, background: 'var(--rd-elevated)', border: `1px solid ${tone}`, boxShadow: highlight ? `0 0 0 4px ${tone}22` : 'var(--rd-shadow)' }}
+  >
+    <span className="flex h-8 w-8 items-center justify-center rounded-md" style={{ background: `${tone}1f`, color: tone }}>{icon}</span>
+    <span>
+      <span className="block t-h3" style={{ color: 'var(--rd-text)' }}>{title}</span>
+      <span className="block t-tech">{sub}</span>
+    </span>
+  </motion.button>
+);
+
+const LegendRow: React.FC<{ color: string; label: string }> = ({ color, label }) => (
+  <div className="flex items-center gap-2">
+    <span className="h-[3px] w-5 rounded-full" style={{ background: color }} />
+    <span className="t-caption text-[11px]">{label}</span>
+  </div>
+);
+
+const Row: React.FC<{ k: string; v?: string; children?: React.ReactNode }> = ({ k, v, children }) => (
+  <div className="flex items-center justify-between">
+    <span className="t-label">{k}</span>
+    {children || <span className="t-tech" style={{ color: 'var(--rd-text)' }}>{v}</span>}
+  </div>
+);

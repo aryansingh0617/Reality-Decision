@@ -1,32 +1,36 @@
 <!doctype html>
-<html lang="en" style="background-color: #0a0d0f; color: #e8edf2;">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>REALITY//DECISION — Autonomous Command Platform</title>
+    <title>REALITY//DECISION — Decision Intelligence</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
     <style>
       html, body, #root {
-        background-color: #0a0d0f;
-        color: #e8edf2;
+        background-color: #0a0c10;
+        color: #e9eef3;
         margin: 0;
         padding: 0;
         min-height: 100vh;
-        font-family: monospace;
+        font-family: 'Geist', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
       }
     </style>
     <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="#2ecc71" />
+    <meta name="theme-color" content="#0a0c10" />
   </head>
-  <body style="background-color: #0a0d0f; color: #e8edf2;">
+  <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then(reg => console.log('[PWA] Service Worker registered:', reg.scope))
-            .catch(err => console.warn('[PWA] Service Worker registration failed:', err));
+          navigator.serviceWorker.register('/sw.js').catch(() => {});
         });
       }
     </script>

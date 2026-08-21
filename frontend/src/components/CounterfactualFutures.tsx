@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { GitBranch, Clock } from 'lucide-react';
+import { GitFork, Clock, TrendingUp } from 'lucide-react';
+import { Badge, SectionLabel, EmptyState } from './ui';
 
 interface BranchData {
   name: string;
@@ -10,121 +11,106 @@ interface BranchData {
   score: number;
 }
 
-interface CounterfactualFuturesProps {
+interface Props {
   branches?: BranchData[];
   packet?: any | null;
   onSelectBranch?: (branch: BranchData) => void;
 }
 
-export const CounterfactualFutures: React.FC<CounterfactualFuturesProps> = ({
-  branches: rawBranches,
-  packet,
-  onSelectBranch,
-}) => {
-  const branches = rawBranches || (packet?.counterfactual_branches || []);
-  const [selectedBranchName, setSelectedBranchName] = useState<string | null>(
-    branches[0]?.name || null
-  );
+export const CounterfactualFutures: React.FC<Props> = ({ branches: rawBranches, packet, onSelectBranch }) => {
+  const branches: BranchData[] = rawBranches || packet?.counterfactual_branches || [];
+  const [selected, setSelected] = useState<string | null>(branches[0]?.name || null);
+  const active = branches.find((b) => b.name === selected) || branches[0];
 
-  const activeBranch = branches.find((b: any) => b.name === selectedBranchName) || branches[0];
+  if (!branches.length) {
+    return (
+      <div className="rd-panel h-full">
+        <EmptyState
+          icon={<GitFork className="h-7 w-7" />}
+          title="No simulations yet"
+          body="Run a decision cycle to explore what would happen under different conditions — and see which alternative the system would fall back to."
+        />
+      </div>
+    );
+  }
+
+  const tone = (s: string) => (s === 'RECOMMENDED' ? 'success' : s === 'UNCERTAIN' ? 'warn' : 'danger');
 
   return (
-    <div className="panel font-mono text-left flex flex-col h-full">
-      <div className="panel-header">
-        <div className="flex items-center gap-2">
-          <GitBranch className="w-3.5 h-3.5 text-[#6fa8dc]" />
-          <span className="panel-title">Counterfactual Candidate Futures</span>
+    <div className="rd-panel flex h-full flex-col">
+      <div className="flex shrink-0 items-center justify-between border-b border-[var(--rd-border)] px-5 py-3.5">
+        <div className="flex items-center gap-2.5">
+          <GitFork className="h-4 w-4" style={{ color: 'var(--rd-accent)' }} />
+          <span className="t-h3" style={{ color: 'var(--rd-text)' }}>What if the situation changes?</span>
         </div>
-        <span className="panel-tag">{branches.length} SIMULATED BRANCHES</span>
+        <span className="t-tech">{branches.length} simulated futures</span>
       </div>
 
-      <div className="p-4 flex flex-col gap-3 flex-1">
-        {/* Branch Selection List */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
-          {branches.map((b: any) => {
-            const isSelected = b.name === (selectedBranchName || branches[0]?.name);
-            const isRec = b.branch_status === 'RECOMMENDED';
-            const isUncertain = b.branch_status === 'UNCERTAIN';
-
-            return (
-              <button
-                key={b.name}
-                onClick={() => {
-                  setSelectedBranchName(b.name);
-                  if (onSelectBranch) onSelectBranch(b);
-                }}
-                className={`border rounded-lg p-3 text-left transition-all relative overflow-hidden ${
-                  isSelected
-                    ? 'border-[#6fa8dc] bg-[#111a1f] ring-1 ring-[#6fa8dc]/40'
-                    : 'border-[#253139] bg-[#0a0f12] hover:border-[#3b4d56]'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-bold text-[#f1f3f0] truncate">{b.name}</span>
-                  <span
-                    className={`text-[8px] px-1.5 py-0.5 rounded font-mono font-bold uppercase ${
-                      isRec
-                        ? 'bg-[#65c89a]/20 text-[#65c89a]'
-                        : isUncertain
-                        ? 'bg-[#e7a23b]/20 text-[#e7a23b]'
-                        : 'bg-[#e45b55]/20 text-[#e45b55]'
-                    }`}
-                  >
-                    {b.branch_status}
-                  </span>
-                </div>
-
-                <div className="text-[10px] text-[#aab5b8] truncate">{b.recommendation}</div>
-                
-                <div className="mt-2 flex items-center justify-between text-[9px] text-[#718086]">
-                  <span className="flex items-center gap-1">
-                    <Clock className="w-3 h-3 text-[#718086]" /> +{b.delay_min}m Delay
-                  </span>
-                  <span>Score: {(b.score * 100).toFixed(0)}%</span>
-                </div>
-              </button>
-            );
-          })}
+      <div className="flex-1 space-y-4 overflow-y-auto p-5">
+        <div>
+          <SectionLabel className="mb-2.5">Simulated conditions</SectionLabel>
+          <div className="grid gap-3 md:grid-cols-3 rd-stagger">
+            {branches.map((b) => {
+              const sel = b.name === (selected || branches[0]?.name);
+              return (
+                <button
+                  key={b.name}
+                  onClick={() => {
+                    setSelected(b.name);
+                    onSelectBranch?.(b);
+                  }}
+                  className="rd-card relative overflow-hidden p-4 text-left transition-all"
+                  style={sel ? { borderColor: 'var(--rd-accent)', boxShadow: '0 0 0 3px var(--rd-accent-soft)' } : undefined}
+                >
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <span className="t-h3 truncate" style={{ color: 'var(--rd-text)' }}>{b.name}</span>
+                    <Badge tone={tone(b.branch_status)}>{b.branch_status}</Badge>
+                  </div>
+                  <div className="t-body-sm truncate" style={{ color: 'var(--rd-text-2)' }}>{b.recommendation}</div>
+                  <div className="mt-3 flex items-center justify-between t-tech">
+                    <span className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" /> +{b.delay_min}m delay</span>
+                    <span>{(b.score * 100).toFixed(0)}% fit</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        {/* Selected Branch Detailed Stress-Test Inspection Card */}
-        {activeBranch && (
-          <div className="border border-[#253139] bg-[#0a0f12] rounded-lg p-4 mt-1 flex flex-col gap-2.5">
-            <div className="flex items-center justify-between border-b border-[#253139] pb-2">
+        {active && (
+          <div className="rd-card p-5 rd-anim-fade">
+            <div className="flex items-center justify-between border-b border-[var(--rd-border)] pb-3.5">
               <div>
-                <span className="text-[9px] text-[#718086] uppercase tracking-wider">Candidate Future Analysis</span>
-                <h4 className="text-sm font-bold text-[#f1f3f0]">{activeBranch.name}</h4>
+                <SectionLabel>Outcome analysis</SectionLabel>
+                <div className="t-h2 mt-1.5" style={{ color: 'var(--rd-text)' }}>{active.name}</div>
               </div>
               <div className="text-right">
-                <span className="text-[9px] text-[#718086] uppercase">Stress Score</span>
-                <div className="text-sm font-bold text-[#6fa8dc]">{(activeBranch.score * 100).toFixed(0)} / 100</div>
+                <SectionLabel>Stress score</SectionLabel>
+                <div className="t-num mt-1.5 flex items-center gap-1.5 text-[20px] font-semibold" style={{ color: 'var(--rd-accent-2)' }}>
+                  <TrendingUp className="h-4 w-4" />
+                  {(active.score * 100).toFixed(0)}<span className="t-caption">/100</span>
+                </div>
               </div>
             </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-              <div>
-                <span className="text-[9px] text-[#718086] block uppercase">Target Route</span>
-                <strong className="text-[#f1f3f0]">{activeBranch.route_id || 'N/A'}</strong>
-              </div>
-              <div>
-                <span className="text-[9px] text-[#718086] block uppercase">Estimated Latency</span>
-                <strong className="text-[#f1f3f0]">+{activeBranch.delay_min} min</strong>
-              </div>
-              <div>
-                <span className="text-[9px] text-[#718086] block uppercase">Branch Status</span>
-                <strong className={activeBranch.branch_status === 'RECOMMENDED' ? 'text-[#65c89a]' : 'text-[#e7a23b]'}>
-                  {activeBranch.branch_status}
-                </strong>
-              </div>
-              <div>
-                <span className="text-[9px] text-[#718086] block uppercase">Decision Window</span>
-                <strong className="text-[#65c89a]">Feasible (Within 30m)</strong>
-              </div>
+            <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">
+              {[
+                ['Target route', active.route_id || 'N/A'],
+                ['Estimated delay', `+${active.delay_min} min`],
+                ['Status', active.branch_status],
+                ['Decision window', 'Feasible < 30m'],
+              ].map(([k, v]) => (
+                <div key={k}>
+                  <div className="t-label">{k}</div>
+                  <div className="t-h3 mt-1.5" style={{ color: 'var(--rd-text)' }}>{v}</div>
+                </div>
+              ))}
             </div>
-
-            <p className="text-xs text-[#aab5b8] bg-[#0d1418] border border-[#253139] rounded p-2.5 leading-relaxed">
-              <strong>Simulated Outcome:</strong> {activeBranch.recommendation}. Evaluated under synthetic stress testing for downstream asset capacity, weather delays, and evidence confidence.
-            </p>
+            <div className="mt-4 rounded-lg px-4 py-3.5" style={{ background: 'var(--rd-bg)', border: '1px solid var(--rd-border)' }}>
+              <div className="t-label mb-1.5">Simulated outcome</div>
+              <p className="t-body" style={{ color: 'var(--rd-text-2)' }}>
+                {active.recommendation}. Evaluated under stress testing for downstream capacity, weather delay, and evidence confidence.
+              </p>
+            </div>
           </div>
         )}
       </div>

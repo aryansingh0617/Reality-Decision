@@ -18,372 +18,319 @@ import { CounterfactualFutures } from './components/CounterfactualFutures';
 import { W3CProvView } from './components/W3CProvView';
 import { VerifyAutonomyPanel } from './components/VerifyAutonomyPanel';
 import { GuidedWalkthrough } from './components/GuidedWalkthrough';
+import { WorkflowStepper } from './components/WorkflowStepper';
+import { SentinelBar } from './components/SentinelBar';
+import { Metric } from './components/ui';
 
 import {
-  Compass,
-  Play,
-  AlertTriangle,
+  LayoutDashboard,
+  Sparkles as SparklesIcon,
+  Activity,
+  MapPin,
   GitBranch,
   ShieldCheck,
+  Play,
   Zap,
-  Sparkles,
-  MapPin,
-  FileText,
-  Activity,
-  Layers,
+  AlertTriangle,
+  X,
+  GitFork,
   FileJson,
+  RefreshCw,
 } from 'lucide-react';
 
-export function App() {
-  const [activeTab, setActiveTab] = useState<
-    'mission_control' | 'spatial_map' | 'decision_intelligence' | 'agent_telemetry' | 'counterfactuals' | 'dependency_graph' | 'w3c_prov'
-  >('mission_control');
+type Section = 'command' | 'decision' | 'activity' | 'map' | 'analysis';
+type AnalysisTab = 'counterfactuals' | 'dependency' | 'provenance';
 
+const WORKING_MSGS = [
+  'Reading current reality…',
+  'Inspecting evidence…',
+  'Comparing available options…',
+  'Running simulation…',
+  'Validating the plan…',
+  'Generating recommendation…',
+];
+
+const NAV: { key: Section; label: string; icon: React.ElementType }[] = [
+  { key: 'command', label: 'Command Center', icon: LayoutDashboard },
+  { key: 'decision', label: 'Decision', icon: SparklesIcon },
+  { key: 'activity', label: 'Activity', icon: Activity },
+  { key: 'map', label: 'Map', icon: MapPin },
+  { key: 'analysis', label: 'Analysis', icon: GitBranch },
+];
+
+export function App() {
+  const [section, setSection] = useState<Section>('command');
+  const [analysisTab, setAnalysisTab] = useState<AnalysisTab>('counterfactuals');
   const [state, setState] = useState<RealityState | null>(null);
   const [localSteps, setLocalSteps] = useState<AgentStep[]>([]);
-  const [isReplanning, setIsReplanning] = useState(false);
+  const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isWalkthroughOpen, setIsWalkthroughOpen] = useState(false);
-  const [isVerifyAutonomyOpen, setIsVerifyAutonomyOpen] = useState(false);
-  const [isSimulatedFallbackForced, setIsSimulatedFallbackForced] = useState(false);
+  const [walkthroughOpen, setWalkthroughOpen] = useState(false);
+  const [verifyOpen, setVerifyOpen] = useState(false);
+  const [fallbackForced, setFallbackForced] = useState(false);
 
-  const getISTTime = () => {
-    return (
-      new Intl.DateTimeFormat('en-GB', {
-        timeZone: 'Asia/Kolkata',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false,
-      }).format(new Date()) + ' IST'
-    );
-  };
-
-  const [istTime, setIstTime] = useState(getISTTime);
-
+  const getIST = () =>
+    new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date());
+  const [ist, setIst] = useState(getIST);
   useEffect(() => {
-    const interval = setInterval(() => setIstTime(getISTTime()), 1000);
-    return () => clearInterval(interval);
+    const t = setInterval(() => setIst(getIST()), 1000);
+    return () => clearInterval(t);
   }, []);
 
-  const loadHealthAndState = async () => {
+  const loadAll = async () => {
     try {
       const health = await fetchHealthStatus();
-      setIsSimulatedFallbackForced(!!health.simulated_fallback_forced);
-      const data = await fetchState();
-      setState(data);
+      setFallbackForced(!!health.simulated_fallback_forced);
+      setState(await fetchState());
     } catch (err: any) {
-      setError(err.message || 'Failed to fetch state');
+      setError(err.message || 'Failed to reach the decision engine');
     }
   };
-
   useEffect(() => {
-    loadHealthAndState();
+    loadAll();
   }, []);
 
-  const handleToggleFallback = async () => {
-    try {
-      const res = await toggleSimulatedFallback(!isSimulatedFallbackForced);
-      setIsSimulatedFallbackForced(res.simulated_fallback_forced);
-      await loadHealthAndState();
-    } catch (err: any) {
-      setError(err.message || 'Failed to toggle simulated fallback');
-    }
-  };
-
-  const handleStartMission = () => {
-    setIsReplanning(true);
+  const runCycle = () => {
+    setWorking(true);
     setError(null);
     setLocalSteps([]);
-
     streamAutonomousMission(
       (eventName, data) => {
-        if (eventName === 'complete') {
-          fetchState().then(setState);
-        } else if (typeof data === 'object' && data !== null && 'agent' in data) {
-          setLocalSteps((prev) => [...prev, data as AgentStep]);
-        }
+        if (eventName === 'complete') fetchState().then(setState);
+        else if (data && typeof data === 'object' && 'agent' in data) setLocalSteps((p) => [...p, data as AgentStep]);
       },
       () => {
-        setIsReplanning(false);
+        setWorking(false);
         fetchState().then(setState);
       },
-      (_err) => {
-        setIsReplanning(false);
-      }
+      () => setWorking(false)
     );
   };
 
   const handleAuthorize = async (action: string) => {
     try {
-      const targetVersion = state?.world_state_version;
-      const updatedState = await authorizeDecision(action, targetVersion);
-      setState(updatedState);
+      setState(await authorizeDecision(action, state?.world_state_version));
     } catch (err: any) {
-      setError(err.message || 'Failed to authorize');
+      setError(err.message || 'Authorization failed');
     }
   };
 
-  const handleInjectEvent = async (eventId: string) => {
+  const injectDisruption = async (eventId: string) => {
     try {
-      const updatedState = await injectEvent(eventId);
-      setState(updatedState);
-      handleStartMission();
+      setState(await injectEvent(eventId));
+      runCycle();
     } catch (err: any) {
       setError(err.message || 'Failed to inject event');
     }
   };
 
-  const isDeterministicFallback = !state?.llm_mode_active || state?.reasoning_mode === 'DETERMINISTIC_FALLBACK';
+  const toggleFallback = async () => {
+    try {
+      const res = await toggleSimulatedFallback(!fallbackForced);
+      setFallbackForced(res.simulated_fallback_forced);
+      await loadAll();
+    } catch (err: any) {
+      setError(err.message || 'Failed to toggle mode');
+    }
+  };
+
+  const packet = state?.current_packet || null;
+  const steps = state?.agent_steps?.length ? state.agent_steps : localSteps;
+  const isFallback = !state?.llm_mode_active || state?.reasoning_mode === 'DETERMINISTIC_FALLBACK';
+  const authorized = packet?.authorization_status === 'AUTHORIZED';
+
+  // Current stage in the loop
+  let stageIndex = 0;
+  if (working) stageIndex = Math.min(1 + localSteps.length, 5);
+  else if (authorized) stageIndex = 7;
+  else if (packet?.authorization_status === 'PENDING') stageIndex = 6;
+  else if (packet) stageIndex = 5;
+  const workingLabel = WORKING_MSGS[Math.min(localSteps.length, WORKING_MSGS.length - 1)];
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-[#07090b] text-[#e8edf2] font-sans overflow-hidden select-none">
+    <div className="flex h-screen w-screen flex-col overflow-hidden" style={{ background: 'var(--rd-bg)', color: 'var(--rd-text)' }}>
+      {/* Error banner */}
       {error && (
-        <div className="bg-[#ef4444] text-[#07090b] px-4 py-1.5 font-mono text-xs font-extrabold flex items-center justify-between z-50">
-          <span>SYSTEM ERROR: {error}</span>
-          <button onClick={() => setError(null)} className="cursor-pointer underline">DISMISS</button>
+        <div className="flex items-center justify-between px-5 py-2.5 rd-anim-fade" style={{ background: 'var(--rd-danger-soft)', borderBottom: '1px solid rgba(229,100,94,0.4)' }}>
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="h-4 w-4" style={{ color: 'var(--rd-danger)' }} />
+            <span className="t-body-sm" style={{ color: '#f0908b' }}>Decision engine unreachable — {error}. Your last known operational state remains available.</span>
+          </div>
+          <button onClick={() => setError(null)} aria-label="Dismiss" className="text-[var(--rd-text-3)] hover:text-[var(--rd-text)]"><X className="h-4 w-4" /></button>
         </div>
       )}
-      {/* 1. TOP EXECUTIVE HEADER */}
-      <header className="h-14 bg-[#0d1117] border-b border-[#222b34] px-5 flex items-center justify-between z-30 shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-[#00f2fe]/10 border border-[#00f2fe]/40 flex items-center justify-center text-[#00f2fe]">
-            <Compass className="w-5 h-5" />
+
+      {/* Header */}
+      <header className="flex h-16 shrink-0 items-center justify-between border-b border-[var(--rd-border)] px-5" style={{ background: 'var(--rd-surface)' }}>
+        <div className="flex items-center gap-3.5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ background: 'var(--rd-accent-soft)', border: '1px solid rgba(91,141,239,0.4)' }}>
+            <span className="text-[15px] font-bold" style={{ color: 'var(--rd-accent)' }}>R</span>
           </div>
           <div>
-            <div className="text-sm font-extrabold tracking-wider text-[#e8edf2] flex items-center gap-2 font-mono">
-              <span>REALITY//DECISION 2.0</span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded bg-[#00f2fe]/20 text-[#00f2fe] border border-[#00f2fe]/40">
-                v{state?.world_state_version || 1}
-              </span>
+            <div className="flex items-center gap-2">
+              <span className="t-h2 tracking-tight" style={{ color: 'var(--rd-text)' }}>REALITY<span style={{ color: 'var(--rd-text-3)' }}>//</span>DECISION</span>
             </div>
-            <div className="text-[10px] text-[#8a9aaa] font-mono">AUTONOMOUS DECISION-INTELLIGENCE PLATFORM</div>
+            <div className="t-caption -mt-0.5">{state?.mission || 'Decision Intelligence'}</div>
           </div>
         </div>
 
-        {/* Top Header Controls */}
-        <div className="flex items-center gap-3 font-mono text-xs">
-          <button
-            onClick={() => setIsVerifyAutonomyOpen(true)}
-            className="px-3 py-1.5 bg-[#2ecc71] text-[#07090b] font-extrabold rounded flex items-center gap-1.5 hover:bg-[#26b863] transition-all cursor-pointer shadow-md text-xs"
-          >
-            <ShieldCheck className="w-4 h-4" />
-            <span>VERIFY AUTONOMY</span>
+        <div className="flex items-center gap-2.5">
+          <button onClick={() => setWalkthroughOpen(true)} data-testid="walkthrough-button" className="rd-btn rd-btn-ghost hidden sm:inline-flex">
+            <SparklesIcon className="h-3.5 w-3.5" /> How it works
           </button>
-
-          <button
-            onClick={() => setIsWalkthroughOpen(true)}
-            className="px-3 py-1.5 bg-[#38bdf8] text-[#07090b] font-extrabold rounded flex items-center gap-1.5 hover:bg-[#7dd3fc] transition-all cursor-pointer shadow-md text-xs"
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>WALKTHROUGH</span>
+          <button onClick={() => setVerifyOpen(true)} data-testid="verify-autonomy-button" className="rd-btn rd-btn-ghost hidden md:inline-flex">
+            <ShieldCheck className="h-3.5 w-3.5" /> Verify autonomy
           </button>
-
           <button
-            onClick={handleToggleFallback}
-            className={`px-3 py-1.5 rounded text-xs font-bold border transition-all flex items-center gap-1.5 cursor-pointer ${
-              isSimulatedFallbackForced
-                ? 'bg-[#ef4444]/20 border-[#ef4444] text-[#ef4444]'
-                : 'bg-[#14191e] border-[#222b34] text-[#8a9aaa] hover:text-[#e8edf2]'
-            }`}
+            onClick={toggleFallback}
+            data-testid="simulate-outage-button"
+            title="Simulate a model outage to demonstrate deterministic fallback"
+            className="rd-btn rd-btn-ghost"
+            style={fallbackForced ? { color: 'var(--rd-warn)', borderColor: 'rgba(224,168,61,0.4)', background: 'var(--rd-warn-soft)' } : undefined}
           >
-            <Zap className="w-3.5 h-3.5" />
-            <span>{isSimulatedFallbackForced ? 'SIMULATED FAIL: ON' : 'SIMULATE API FAIL'}</span>
+            <Zap className="h-3.5 w-3.5" /> {fallbackForced ? 'Outage: on' : 'Simulate outage'}
           </button>
-
-          <div className="bg-[#07090b] border border-[#222b34] px-2.5 py-1 rounded text-[#00f2fe] text-[11px] font-bold">
-            {istTime}
+          <div className="hidden items-center gap-2.5 rounded-lg px-3 py-1.5 lg:flex" style={{ background: 'var(--rd-panel)', border: '1px solid var(--rd-border)' }}>
+            <span className="rd-dot" style={{ background: isFallback ? 'var(--rd-warn)' : 'var(--rd-success)' }} />
+            <span className="t-tech" style={{ color: isFallback ? 'var(--rd-warn)' : 'var(--rd-success)' }}>{isFallback ? 'Fallback mode' : 'Live model'}</span>
           </div>
-
-          <div
-            className={`flex items-center gap-2 border px-3 py-1 rounded font-mono text-xs ${
-              isDeterministicFallback
-                ? 'border-[#f59e0b]/60 bg-[#f59e0b]/15 text-[#fbbf24]'
-                : 'border-[#2ecc71]/60 bg-[#2ecc71]/15 text-[#2ecc71]'
-            }`}
-          >
-            <span className={`w-2 h-2 rounded-full ${isDeterministicFallback ? 'bg-[#f59e0b] animate-pulse' : 'bg-[#2ecc71]'}`} />
-            <span className="font-extrabold uppercase">{isDeterministicFallback ? 'DETERMINISTIC FALLBACK' : 'LIVE MODEL'}</span>
-          </div>
+          <span className="t-tech hidden xl:inline" style={{ color: 'var(--rd-text-3)' }}>{ist} IST</span>
         </div>
       </header>
 
-      {/* 2. MAIN 3-COLUMN APP SHELL */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* LEFT NAVIGATION RAIL (Inspired by Reference Image) */}
-        <aside className="w-64 bg-[#0d1117] border-r border-[#222b34] flex flex-col justify-between shrink-0 font-mono text-xs z-20">
-          <div className="p-3 space-y-1">
-            <div className="text-[10px] font-bold text-[#8a9aaa] px-3 py-2 uppercase tracking-wider">COMMAND NAVIGATION</div>
-
+      {/* Nav */}
+      <nav className="flex shrink-0 items-center gap-1 border-b border-[var(--rd-border)] px-5 py-2" style={{ background: 'var(--rd-surface)' }}>
+        {NAV.map((n) => {
+          const Icon = n.icon;
+          const active = section === n.key;
+          return (
             <button
-              onClick={() => setActiveTab('mission_control')}
-              className={`w-full px-3 py-2.5 rounded flex items-center gap-2.5 transition-all cursor-pointer font-bold ${
-                activeTab === 'mission_control' ? 'bg-[#00f2fe]/15 text-[#00f2fe] border border-[#00f2fe]/40' : 'text-[#8a9aaa] hover:text-[#e8edf2] hover:bg-[#14191e]'
-              }`}
+              key={n.key}
+              onClick={() => setSection(n.key)}
+              data-testid={`nav-${n.key}`}
+              className="flex items-center gap-2 rounded-lg px-3.5 py-2 text-[13px] font-medium transition-colors"
+              style={{
+                color: active ? 'var(--rd-text)' : 'var(--rd-text-3)',
+                background: active ? 'var(--rd-panel)' : 'transparent',
+                border: `1px solid ${active ? 'var(--rd-border-2)' : 'transparent'}`,
+              }}
             >
-              <Compass className="w-4 h-4" />
-              <span>Mission Control</span>
+              <Icon className="h-4 w-4" style={{ color: active ? 'var(--rd-accent)' : 'var(--rd-text-3)' }} />
+              {n.label}
             </button>
+          );
+        })}
+      </nav>
 
-            <button
-              onClick={() => setActiveTab('spatial_map')}
-              className={`w-full px-3 py-2.5 rounded flex items-center gap-2.5 transition-all cursor-pointer font-bold ${
-                activeTab === 'spatial_map' ? 'bg-[#00f2fe]/15 text-[#00f2fe] border border-[#00f2fe]/40' : 'text-[#8a9aaa] hover:text-[#e8edf2] hover:bg-[#14191e]'
-              }`}
-            >
-              <MapPin className="w-4 h-4" />
-              <span>Spatial Map</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('decision_intelligence')}
-              className={`w-full px-3 py-2.5 rounded flex items-center gap-2.5 transition-all cursor-pointer font-bold ${
-                activeTab === 'decision_intelligence' ? 'bg-[#00f2fe]/15 text-[#00f2fe] border border-[#00f2fe]/40' : 'text-[#8a9aaa] hover:text-[#e8edf2] hover:bg-[#14191e]'
-              }`}
-            >
-              <FileText className="w-4 h-4" />
-              <span>Decision Intelligence</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('agent_telemetry')}
-              className={`w-full px-3 py-2.5 rounded flex items-center gap-2.5 transition-all cursor-pointer font-bold ${
-                activeTab === 'agent_telemetry' ? 'bg-[#00f2fe]/15 text-[#00f2fe] border border-[#00f2fe]/40' : 'text-[#8a9aaa] hover:text-[#e8edf2] hover:bg-[#14191e]'
-              }`}
-            >
-              <Activity className="w-4 h-4" />
-              <span>Agent Telemetry</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('counterfactuals')}
-              className={`w-full px-3 py-2.5 rounded flex items-center gap-2.5 transition-all cursor-pointer font-bold ${
-                activeTab === 'counterfactuals' ? 'bg-[#00f2fe]/15 text-[#00f2fe] border border-[#00f2fe]/40' : 'text-[#8a9aaa] hover:text-[#e8edf2] hover:bg-[#14191e]'
-              }`}
-            >
-              <GitBranch className="w-4 h-4" />
-              <span>Counterfactuals</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('dependency_graph')}
-              className={`w-full px-3 py-2.5 rounded flex items-center gap-2.5 transition-all cursor-pointer font-bold ${
-                activeTab === 'dependency_graph' ? 'bg-[#00f2fe]/15 text-[#00f2fe] border border-[#00f2fe]/40' : 'text-[#8a9aaa] hover:text-[#e8edf2] hover:bg-[#14191e]'
-              }`}
-            >
-              <Layers className="w-4 h-4" />
-              <span>Dependency Graph</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('w3c_prov')}
-              className={`w-full px-3 py-2.5 rounded flex items-center gap-2.5 transition-all cursor-pointer font-bold ${
-                activeTab === 'w3c_prov' ? 'bg-[#00f2fe]/15 text-[#00f2fe] border border-[#00f2fe]/40' : 'text-[#8a9aaa] hover:text-[#e8edf2] hover:bg-[#14191e]'
-              }`}
-            >
-              <FileJson className="w-4 h-4" />
-              <span>W3C Provenance</span>
-            </button>
-          </div>
-
-          {/* Quick Trigger Buttons */}
-          <div className="p-3 border-t border-[#222b34] space-y-2">
-            <div className="text-[10px] font-bold text-[#8a9aaa] uppercase tracking-wider">SCENARIO CONTROLS</div>
-
-            <button
-              onClick={handleStartMission}
-              disabled={isReplanning}
-              className="w-full py-2 bg-[#00f2fe] hover:bg-[#38bdf8] text-[#07090b] font-extrabold rounded flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md"
-            >
-              <Play className="w-3.5 h-3.5 fill-current" />
-              <span>{isReplanning ? 'REPLANNING...' : 'START MISSION'}</span>
-            </button>
-
-            <button
-              onClick={() => handleInjectEvent('bridge_fails')}
-              className="w-full py-2 bg-[#ef4444]/20 border border-[#ef4444] text-[#f87171] hover:bg-[#ef4444]/30 font-bold rounded flex items-center justify-center gap-1.5 transition-all cursor-pointer text-[11px]"
-            >
-              <AlertTriangle className="w-3.5 h-3.5" />
-              <span>INJECT B-07 COLLAPSE</span>
-            </button>
-          </div>
-        </aside>
-
-        {/* CENTER WORKSPACE CANVAS */}
-        <main className="flex-1 bg-[#07090b] p-4 flex flex-col overflow-hidden relative">
-          {/* Top Quick Operational Bar */}
-          <div className="grid grid-cols-5 gap-3 mb-3 shrink-0 font-mono text-xs">
-            <div className="p-3 bg-[#0d1117] border border-[#222b34] rounded-lg">
-              <div className="text-[10px] text-[#8a9aaa]">WATER ELEVATION</div>
-              <div className="text-base font-bold text-[#00f2fe] mt-0.5">{state?.current_water_depth_m ?? 0.35}m</div>
-            </div>
-            <div className="p-3 bg-[#0d1117] border border-[#222b34] rounded-lg">
-              <div className="text-[10px] text-[#8a9aaa]">WATER RISE RATE</div>
-              <div className="text-base font-bold text-[#f59e0b] mt-0.5">+{state?.water_rise_rate_m_hr ?? 0.15}m/h</div>
-            </div>
-            <div className="p-3 bg-[#0d1117] border border-[#222b34] rounded-lg">
-              <div className="text-[10px] text-[#8a9aaa]">PREDICTED TTI</div>
-              <div className="text-base font-bold text-[#2ecc71] mt-0.5">{state?.current_packet?.tti_minutes ?? 112}m</div>
-            </div>
-            <div className="p-3 bg-[#0d1117] border border-[#222b34] rounded-lg">
-              <div className="text-[10px] text-[#8a9aaa]">ACTIVE PLAN FRAGILITY</div>
-              <div className="text-base font-bold text-[#2ecc71] mt-0.5">{state?.current_packet?.fragility ?? 'STABLE'}</div>
-            </div>
-            <div className="p-3 bg-[#0d1117] border border-[#222b34] rounded-lg">
-              <div className="text-[10px] text-[#8a9aaa]">STATE VERSION</div>
-              <div className="text-base font-bold text-[#00f2fe] mt-0.5">v{state?.world_state_version ?? 1}</div>
-            </div>
-          </div>
-
-          {/* Active Tab View Rendering */}
-          <div className="flex-1 relative overflow-hidden">
-            {activeTab === 'mission_control' && (
-              <div className="w-full h-full grid grid-rows-2 gap-3">
-                <SpatialMapCanvas state={state} activePlanRouteId={state?.current_packet?.route_id} />
-                <div className="grid grid-cols-2 gap-3 min-h-0">
-                  <AgentTrace steps={state?.agent_steps || localSteps} reasoningMode={state?.reasoning_mode || 'LLM_AGENTIC'} />
-                  <DependencyGraph state={state} />
+      {/* Content */}
+      <main className="flex-1 overflow-y-auto">
+        {section === 'command' && (
+          <div className="mx-auto max-w-[1600px] space-y-4 p-5 rd-anim-fade">
+            {/* Situation + scenario controls */}
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-stretch">
+              <div className="rd-panel flex flex-1 flex-col justify-between p-5">
+                <div>
+                  <div className="t-label">Current situation</div>
+                  <div className="t-h1 mt-2" style={{ color: 'var(--rd-text)' }}>{state?.mission || 'Loading mission…'}</div>
+                  <div className="t-body mt-2 max-w-2xl" style={{ color: 'var(--rd-text-2)' }}>
+                    {state?.last_state_change || 'Monitoring live conditions. Run a decision cycle to let the system investigate reality and recommend the safest action.'}
+                  </div>
+                </div>
+                <div className="mt-5 flex flex-wrap gap-2.5">
+                  <button onClick={runCycle} disabled={working} data-testid="run-cycle-button" className="rd-btn rd-btn-primary">
+                    {working ? <RefreshCw className="h-4 w-4 rd-spin-slow" /> : <Play className="h-4 w-4" />}
+                    {working ? 'Running decision cycle…' : 'Run decision cycle'}
+                  </button>
+                  <button onClick={() => injectDisruption('bridge_fails')} disabled={working} data-testid="inject-bridge-button" className="rd-btn rd-btn-ghost" style={{ color: 'var(--rd-danger)', borderColor: 'rgba(229,100,94,0.4)' }}>
+                    <AlertTriangle className="h-4 w-4" /> Simulate: Bridge B-07 fails
+                  </button>
                 </div>
               </div>
-            )}
 
-            {activeTab === 'spatial_map' && (
-              <SpatialMapCanvas state={state} activePlanRouteId={state?.current_packet?.route_id} />
-            )}
+              <div className="grid grid-cols-2 gap-3 xl:w-[420px] xl:grid-cols-2">
+                <Metric label="Water elevation" value={`${state?.current_water_depth_m ?? 0.35}m`} tone={(state?.current_water_depth_m ?? 0) > 0.5 ? 'danger' : 'neutral'} />
+                <Metric label="Rise rate" value={`+${state?.water_rise_rate_m_hr ?? 0.15}m/h`} tone="warn" />
+                <Metric label="Time to impact" value={packet?.tti_minutes && packet.tti_minutes < 999 ? `${packet.tti_minutes} min` : '—'} tone="neutral" />
+                <Metric label="Plan status" value={authorized ? 'Authorized' : packet ? 'Awaiting' : 'None'} tone={authorized ? 'success' : 'warn'} />
+              </div>
+            </div>
 
-            {activeTab === 'decision_intelligence' && (
-              <DecisionPacketView packet={state?.current_packet || null} onAuthorize={handleAuthorize} />
-            )}
+            {/* Workflow story */}
+            <WorkflowStepper currentIndex={stageIndex} working={working} workingLabel={workingLabel} />
 
-            {activeTab === 'agent_telemetry' && (
-              <AgentTrace steps={state?.agent_steps || localSteps} reasoningMode={state?.reasoning_mode || 'LLM_AGENTIC'} />
-            )}
+            {/* Map + Decision */}
+            <div className="grid gap-4 lg:grid-cols-[1fr_400px]">
+              <div className="flex flex-col gap-4">
+                <div className="h-[440px]"><SpatialMapCanvas state={state} activePlanRouteId={packet?.route_id} /></div>
+                <div className="rd-panel h-[360px] overflow-hidden"><AgentTrace steps={steps} working={working} /></div>
+              </div>
+              <div className="rd-panel overflow-hidden lg:h-[816px]">
+                <DecisionPacketView packet={packet} onAuthorize={handleAuthorize} routes={state?.routes} />
+              </div>
+            </div>
 
-            {activeTab === 'counterfactuals' && (
-              <CounterfactualFutures packet={state?.current_packet || null} />
-            )}
-
-            {activeTab === 'dependency_graph' && (
-              <DependencyGraph state={state} />
-            )}
-
-            {activeTab === 'w3c_prov' && (
-              <W3CProvView />
-            )}
+            {/* Sentinel */}
+            <SentinelBar status={state?.sentinel_status} replanCount={state?.replan_count} version={state?.world_state_version} authorized={authorized} replanning={working} />
           </div>
-        </main>
+        )}
 
-        {/* RIGHT CONTEXTUAL INTELLIGENCE DRAWER */}
-        <aside className="w-96 bg-[#0d1117] border-l border-[#222b34] flex flex-col shrink-0 z-20 overflow-hidden">
-          <DecisionPacketView packet={state?.current_packet || null} onAuthorize={handleAuthorize} />
-        </aside>
-      </div>
+        {section === 'decision' && (
+          <div className="mx-auto max-w-3xl p-5 rd-anim-fade">
+            <div className="rd-panel h-[calc(100vh-160px)] overflow-hidden">
+              <DecisionPacketView packet={packet} onAuthorize={handleAuthorize} routes={state?.routes} />
+            </div>
+          </div>
+        )}
 
-      {/* Proof-of-Agency Modal */}
-      <VerifyAutonomyPanel isOpen={isVerifyAutonomyOpen} onClose={() => setIsVerifyAutonomyOpen(false)} />
+        {section === 'activity' && (
+          <div className="mx-auto max-w-3xl p-5 rd-anim-fade">
+            <div className="rd-panel h-[calc(100vh-160px)] overflow-hidden">
+              <AgentTrace steps={steps} working={working} />
+            </div>
+          </div>
+        )}
 
-      {/* Guided Walkthrough Tour */}
-      <GuidedWalkthrough isOpen={isWalkthroughOpen} onClose={() => setIsWalkthroughOpen(false)} />
+        {section === 'map' && (
+          <div className="mx-auto max-w-[1600px] p-5 rd-anim-fade">
+            <div className="h-[calc(100vh-190px)]"><SpatialMapCanvas state={state} activePlanRouteId={packet?.route_id} /></div>
+            <div className="mt-4"><SentinelBar status={state?.sentinel_status} replanCount={state?.replan_count} version={state?.world_state_version} authorized={authorized} replanning={working} /></div>
+          </div>
+        )}
+
+        {section === 'analysis' && (
+          <div className="mx-auto max-w-[1600px] p-5 rd-anim-fade">
+            <div className="mb-4 flex items-center gap-1">
+              {([
+                { k: 'counterfactuals', label: 'What if?', icon: GitFork },
+                { k: 'dependency', label: 'Dependencies', icon: GitBranch },
+                { k: 'provenance', label: 'Provenance', icon: FileJson },
+              ] as const).map((t) => {
+                const Icon = t.icon;
+                const active = analysisTab === t.k;
+                return (
+                  <button
+                    key={t.k}
+                    onClick={() => setAnalysisTab(t.k)}
+                    data-testid={`analysis-${t.k}`}
+                    className="flex items-center gap-2 rounded-lg px-3.5 py-2 text-[13px] font-medium transition-colors"
+                    style={{ color: active ? 'var(--rd-text)' : 'var(--rd-text-3)', background: active ? 'var(--rd-panel)' : 'transparent', border: `1px solid ${active ? 'var(--rd-border-2)' : 'transparent'}` }}
+                  >
+                    <Icon className="h-4 w-4" style={{ color: active ? 'var(--rd-accent)' : 'var(--rd-text-3)' }} /> {t.label}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="h-[calc(100vh-230px)] overflow-hidden">
+              {analysisTab === 'counterfactuals' && <CounterfactualFutures packet={packet} />}
+              {analysisTab === 'dependency' && <DependencyGraph state={state} />}
+              {analysisTab === 'provenance' && <W3CProvView />}
+            </div>
+          </div>
+        )}
+      </main>
+
+      <VerifyAutonomyPanel isOpen={verifyOpen} onClose={() => setVerifyOpen(false)} />
+      <GuidedWalkthrough isOpen={walkthroughOpen} onClose={() => setWalkthroughOpen(false)} />
     </div>
   );
 }
