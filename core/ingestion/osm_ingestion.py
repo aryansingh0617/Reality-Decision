@@ -16,7 +16,7 @@ class OSMIngestionEngine:
 
     @staticmethod
     def fetch_osm_disaster_geojson(
-        bbox: Tuple[float, float, float, float] = (26.10, 91.65, 26.25, 91.85),  # Guwahati / Assam default
+        bbox: Tuple[float, float, float, float] = (26.10, 91.65, 26.25, 91.85),  # Emergency Disaster Zone default
     ) -> Dict[str, Any]:
         """
         Queries Overpass API for road networks, bridges, hospitals, and shelters within bounding box.
@@ -78,7 +78,7 @@ class OSMIngestionEngine:
         except Exception as err:
             logger.warning(f"OSM Overpass API fetch failed ({err}). Using fallback OSM disaster region graph.")
 
-        # Fallback GeoJSON for Assam Disaster Zone
+        # Fallback GeoJSON for Emergency Disaster Zone
         return {
             "source": "OSM_GIS_FALLBACK_GRAPH",
             "bbox": list(bbox),

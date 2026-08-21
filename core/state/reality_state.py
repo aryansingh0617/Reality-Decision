@@ -92,7 +92,7 @@ class AuditRecord:
 class DecisionPacket:
     decision_id: str = ""
     world_state_version: int = 1
-    mission: str = "Assam Flood Evacuation"
+    mission: str = "Emergency Flood Evacuation"
     policy: MissionPolicy = MissionPolicy.BALANCED
     recommendation: str = ""
     route_id: str | None = None
@@ -136,7 +136,7 @@ class RealityState:
 
     world_state_version: int = 1
     life_cycle_state: str = "MISSION_CREATED"  # MISSION_CREATED, ASSESSING, DECISION_READY, AWAITING_AUTHORIZATION, AUTHORIZED, MONITORING, PLAN_AT_RISK, REVALIDATING, REPLAN, ESCALATION_REQUIRED
-    mission: str = "Assam Flood Evacuation"
+    mission: str = "Emergency Flood Evacuation"
     policy: MissionPolicy = MissionPolicy.BALANCED
     decision_horizon_min: int = 5
     decision_window_min: int = 4

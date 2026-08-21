@@ -25,7 +25,7 @@ ROUTE_R14_COORDS = [
 
 def create_initial_world() -> tuple[RealityState, EvidenceStore]:
     state = RealityState(
-        mission="Assam Flood Evacuation",
+        mission="Emergency Flood Evacuation",
         policy=MissionPolicy.BALANCED,
         decision_horizon_min=10,
         decision_window_min=15,

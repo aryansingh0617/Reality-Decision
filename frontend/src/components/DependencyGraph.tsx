@@ -210,7 +210,7 @@ export const DependencyGraph = ({ state }: { state: RealityState | null; activeS
       </div>
 
       <div className="flex shrink-0 items-center justify-between border-t border-[var(--rd-border)] px-5 py-2.5">
-        <span className="t-tech">Assam flood response · sector 04</span>
+        <span className="t-tech">Emergency flood response · sector 04</span>
         <div className="flex items-center gap-4">
           {[['Nominal', C.blue], ['Uncertain', C.amber], ['Failed', C.red]].map(([l, c]) => (
             <span key={l} className="flex items-center gap-1.5 t-caption text-[11px]"><span className="rd-dot" style={{ background: c as string }} /> {l}</span>

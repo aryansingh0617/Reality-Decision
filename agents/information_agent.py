@@ -71,7 +71,7 @@ class InformationValueAgent:
     @classmethod
     def _evaluate_llm(cls, state: RealityState) -> List[InformationGap]:
         prompt = f"""
-Analyze the operational state for the Assam Flood Response mission and identify top 3 high-value missing information items.
+Analyze the operational state for the Emergency Flood Response mission and identify top 3 high-value missing information items.
 
 Mission State:
 - Weather: {state.weather}

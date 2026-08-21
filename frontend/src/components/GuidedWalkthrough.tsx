@@ -74,7 +74,7 @@ const STEPS: WalkthroughStep[] = [
       whyUseIt: 'Ensures the operator knows if LLM multi-turn agentic or offline fallback is active.',
       whatHappensOnClick: 'Updates active session metadata and triggers role views.',
       whatWillISee: 'REASONING: LLM-ENHANCED (Blue) or OFFLINE DETERMINISTIC (Green).',
-      whatNext: 'Review Mission Parameters for Operation Assam Flood.',
+      whatNext: 'Review Mission Parameters for Operation Emergency Flood.',
     },
     admin: {
       whatIsThis: 'System Status & Reasoning Environment Header.',
@@ -100,7 +100,7 @@ const STEPS: WalkthroughStep[] = [
       whatNext: 'Observe the current real-world status on the map graph.',
     },
     user: {
-      whatIsThis: 'Operation Assam Flood Evacuation Logistics Specification.',
+      whatIsThis: 'Operation Emergency Flood Evacuation Logistics Specification.',
       whatDoesItDo: 'Establishes primary constraints: Shelter S-04 capacity, Depot D-03 supply, Vehicle V-02 availability.',
       whyUseIt: 'Loglogistics planners use this to verify resource allocation limits.',
       whatHappensOnClick: 'Loads baseline constraints into memory.',

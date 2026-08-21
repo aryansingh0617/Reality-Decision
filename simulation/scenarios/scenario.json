@@ -1,6 +1,6 @@
 {
   "mission": {
-    "name": "Assam Flood Response & Evacuation",
+    "name": "Emergency Flood Response & Evacuation",
     "objective": "Evacuate high-risk shelter S-04 and transport emergency supplies",
     "demand": 25,
     "decision_window_minutes": 15,

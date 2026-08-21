@@ -13,7 +13,7 @@ const API_BASE = getApiBase();
 export const DEFAULT_STATE: RealityState = {
   world_state_version: 1,
   life_cycle_state: 'ACTIVE',
-  mission: 'Assam Evacuation & Waterway Risk Monitoring',
+  mission: 'Emergency Evacuation & Waterway Risk Monitoring',
   policy: 'SPEED',
   decision_horizon_min: 120,
   decision_window_min: 30,
@@ -70,7 +70,7 @@ export const DEFAULT_STATE: RealityState = {
     ai_computed_at: new Date().toISOString(),
     human_authorized_at: null,
     world_state_version: 1,
-    mission: 'Assam Evacuation & Waterway Risk Monitoring',
+    mission: 'Emergency Evacuation & Waterway Risk Monitoring',
     policy: 'SPEED',
     recommendation: 'AUTHORIZE_ROUTE_R12',
     route_id: 'route_r12',

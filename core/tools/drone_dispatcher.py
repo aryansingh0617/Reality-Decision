@@ -13,7 +13,7 @@ class DroneDispatcher:
     @staticmethod
     def generate_drone_flight_plan(
         entity_id: str = "bridge_b07",
-        target_coords: Tuple[float, float] = (26.1833, 91.7333),  # Guwahati / Assam default
+        target_coords: Tuple[float, float] = (26.1833, 91.7333),  # Emergency default
         target_name: str = "Bridge B-07 Load Rating & Submergence",
         voi_score: float = 8.4,
         orbit_radius_m: float = 150.0,
