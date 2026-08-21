@@ -178,6 +178,30 @@ export interface HarnessSuiteResult {
   }>;
 }
 
+async function fetchJson(url: string, options?: RequestInit): Promise<any> {
+  const res = await fetch(url, options);
+  const text = await res.text();
+  if (!res.ok) {
+    if (text.trim().startsWith('<')) {
+      throw new Error(`HTTP ${res.status}: Backend returned HTML instead of JSON. Ensure 'python app.py' is running on port 8000.`);
+    }
+    try {
+      const errObj = JSON.parse(text);
+      throw new Error(errObj.detail || errObj.message || `HTTP ${res.status} Error`);
+    } catch (_e) {
+      throw new Error(`HTTP ${res.status} ${res.statusText}`);
+    }
+  }
+  if (text.trim().startsWith('<')) {
+    throw new Error(`Backend returned HTML instead of JSON from ${url}.`);
+  }
+  try {
+    return JSON.parse(text);
+  } catch (_e) {
+    throw new Error('Received non-JSON response from backend API.');
+  }
+}
+
 export async function fetchHealthStatus(): Promise<{
   status: string;
   llm_available: boolean;
@@ -188,82 +212,59 @@ export async function fetchHealthStatus(): Promise<{
   failure_reason: string | null;
   simulated_fallback_forced?: boolean;
 }> {
-  const res = await fetch(`${API_BASE}/health`);
-  if (!res.ok) throw new Error('Health check failed');
-  return res.json();
+  return fetchJson(`${API_BASE}/health`);
 }
 
 export async function toggleSimulatedFallback(force_fallback?: boolean): Promise<any> {
-  const res = await fetch(`${API_BASE}/llm/toggle-fallback`, {
+  return fetchJson(`${API_BASE}/llm/toggle-fallback`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ force_fallback }),
   });
-  if (!res.ok) throw new Error('Failed to toggle simulated fallback');
-  return res.json();
 }
 
 export async function fetchVerifyAutonomyHarness(): Promise<HarnessSuiteResult> {
-  const res = await fetch(`${API_BASE}/harness/run`);
-  if (!res.ok) throw new Error('Failed to execute proof-of-agency verification harness');
-  return res.json();
+  return fetchJson(`${API_BASE}/harness/run`);
 }
 
 export async function fetchState(): Promise<RealityState> {
-  const res = await fetch(`${API_BASE}/state`);
-  if (!res.ok) throw new Error(`Backend state endpoint returned HTTP ${res.status}`);
-  const text = await res.text();
-  try {
-    return JSON.parse(text);
-  } catch (_e) {
-    throw new Error('Received non-JSON response from backend state endpoint.');
-  }
+  return fetchJson(`${API_BASE}/state`);
 }
 
 export async function initializeMission(): Promise<RealityState> {
-  const res = await fetch(`${API_BASE}/initialize`, { method: 'POST' });
-  if (!res.ok) throw new Error('Failed to initialize mission');
-  const data = await res.json();
+  const data = await fetchJson(`${API_BASE}/initialize`, { method: 'POST' });
   return data.state;
 }
 
 export async function injectEvent(eventId: string): Promise<RealityState> {
-  const res = await fetch(`${API_BASE}/inject`, {
+  const data = await fetchJson(`${API_BASE}/inject`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ event_id: eventId }),
   });
-  if (!res.ok) throw new Error('Failed to inject event');
-  const data = await res.json();
   return data.state;
 }
 
 export async function changePolicy(policy: string): Promise<RealityState> {
-  const res = await fetch(`${API_BASE}/policy`, {
+  const data = await fetchJson(`${API_BASE}/policy`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ policy }),
   });
-  if (!res.ok) throw new Error('Failed to change policy');
-  const data = await res.json();
   return data.state;
 }
 
 export async function authorizeDecision(action: string, target_version?: number): Promise<RealityState> {
-  const res = await fetch(`${API_BASE}/authorize`, {
+  const data = await fetchJson(`${API_BASE}/authorize`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action, target_version }),
   });
-  if (!res.ok) throw new Error('Failed to authorize decision');
-  const data = await res.json();
   return data.state;
 }
 
 export async function resetMission(): Promise<RealityState> {
-  const res = await fetch(`${API_BASE}/reset`, { method: 'POST' });
-  if (!res.ok) throw new Error('Failed to reset mission');
-  const data = await res.json();
+  const data = await fetchJson(`${API_BASE}/reset`, { method: 'POST' });
   return data.state;
 }
 
@@ -344,37 +345,25 @@ export function streamAutonomousMission(
 }
 
 export async function fetchCounterfactuals(): Promise<any> {
-  const res = await fetch(`${API_BASE}/counterfactuals`);
-  if (!res.ok) throw new Error('Failed to fetch counterfactuals');
-  return res.json();
+  return fetchJson(`${API_BASE}/counterfactuals`);
 }
 
 export async function challengePlan(): Promise<any> {
-  const res = await fetch(`${API_BASE}/challenge`, { method: 'POST' });
-  if (!res.ok) throw new Error('Failed to challenge plan');
-  return res.json();
+  return fetchJson(`${API_BASE}/challenge`, { method: 'POST' });
 }
 
 export async function fetchW3CProvGraph(): Promise<any> {
-  const res = await fetch(`${API_BASE}/provenance/w3c-prov`);
-  if (!res.ok) throw new Error('Failed to fetch W3C PROV graph');
-  return res.json();
+  return fetchJson(`${API_BASE}/provenance/w3c-prov`);
 }
 
 export async function fetchGaugeData(siteId: string = "01646500"): Promise<any> {
-  const res = await fetch(`${API_BASE}/gauge/fetch?site_id=${siteId}`);
-  if (!res.ok) throw new Error('Failed to fetch gauge data');
-  return res.json();
+  return fetchJson(`${API_BASE}/gauge/fetch?site_id=${siteId}`);
 }
 
 export async function fetchDroneWaypoints(entityId: string = "bridge_b07"): Promise<any> {
-  const res = await fetch(`${API_BASE}/drone/waypoints?entity_id=${entityId}`);
-  if (!res.ok) throw new Error('Failed to fetch drone waypoints');
-  return res.json();
+  return fetchJson(`${API_BASE}/drone/waypoints?entity_id=${entityId}`);
 }
 
 export async function fetchOSMGEOJSON(): Promise<any> {
-  const res = await fetch(`${API_BASE}/osm/ingest`);
-  if (!res.ok) throw new Error('Failed to fetch OSM GeoJSON');
-  return res.json();
+  return fetchJson(`${API_BASE}/osm/ingest`);
 }
