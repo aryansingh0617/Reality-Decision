@@ -87,15 +87,21 @@ export const DependencyGraph = ({ state }: { state: RealityState | null; activeS
   const getStatus = useCallback(
     (entityId: string) => {
       if (!state) return 'UNKNOWN';
+      const conflicts = state.conflicts || [];
+      const routes = state.routes || {};
+      const hospitals = state.hospitals || {};
+      const shelters = state.shelters || {};
+      const vehicles = state.vehicles || {};
+
       if (entityId === 'bridge_b07') {
-        const st = state.routes.route_r12?.status || 'KNOWN';
-        if (state.conflicts.some((c) => c.entity === 'bridge_b07')) return 'CONFLICTING';
+        const st = routes.route_r12?.status || 'KNOWN';
+        if (conflicts.some((c: any) => c.entity === 'bridge_b07')) return 'CONFLICTING';
         return st === 'UNAVAILABLE' ? 'UNAVAILABLE' : st;
       }
-      if (state.routes[entityId]) return state.routes[entityId].status;
-      if (state.hospitals[entityId]) return state.hospitals[entityId].status;
-      if (state.shelters[entityId]) return state.shelters[entityId].status;
-      if (state.vehicles[entityId]) return state.vehicles[entityId].available ? 'KNOWN' : 'UNAVAILABLE';
+      if (routes[entityId]) return routes[entityId].status;
+      if (hospitals[entityId]) return hospitals[entityId].status;
+      if (shelters[entityId]) return shelters[entityId].status;
+      if (vehicles[entityId]) return vehicles[entityId].available ? 'KNOWN' : 'UNAVAILABLE';
       return 'KNOWN';
     },
     [state]
@@ -103,6 +109,8 @@ export const DependencyGraph = ({ state }: { state: RealityState | null; activeS
 
   useEffect(() => {
     if (!state) return;
+    const conflicts = state.conflicts || [];
+    const vehicles = state.vehicles || {};
     const activeRec = state.current_packet?.route_id || 'route_r12';
     const b07 = getStatus('bridge_b07');
     const r12 = getStatus('route_r12');
@@ -110,7 +118,7 @@ export const DependencyGraph = ({ state }: { state: RealityState | null; activeS
 
     const baseNodes: Node[] = [
       { id: 'north_relay', type: 'custom', position: { x: 80, y: 180 }, data: { label: 'North Relay', type: 'Comms node', status: 'KNOWN', detail: '400 MHz mesh comms', downstream: ['Bridge B-07', 'Route R-12', 'Route R-14'] } },
-      { id: 'orbit_relay', type: 'custom', position: { x: 440, y: 20 }, data: { label: 'Orbit Relay', type: 'Satellite node', status: state.conflicts.some((c) => c.entity === 'bridge_b07') ? 'CONFLICTING' : 'KNOWN', detail: 'Sentinel-2 optical imagery', downstream: ['Bridge B-07', 'Route R-14'] } },
+      { id: 'orbit_relay', type: 'custom', position: { x: 440, y: 20 }, data: { label: 'Orbit Relay', type: 'Satellite node', status: conflicts.some((c: any) => c.entity === 'bridge_b07') ? 'CONFLICTING' : 'KNOWN', detail: 'Sentinel-2 optical imagery', downstream: ['Bridge B-07', 'Route R-14'] } },
       { id: 'bridge_b07', type: 'custom', position: { x: 260, y: 180 }, data: { label: 'Bridge B-07', type: 'Infrastructure', status: b07, detail: 'Guwahati waterway crossing', downstream: ['Route R-12', 'Depot D-03', 'Shelter S-04'] } },
       { id: 'south_depot', type: 'custom', position: { x: 260, y: 340 }, data: { label: 'South Depot', type: 'Backup hub', status: 'KNOWN', detail: 'Reserve evacuation stock', downstream: ['Vehicle V-02', 'Shelter S-04'] } },
       { id: 'route_r12', type: 'custom', position: { x: 440, y: 100 }, data: { label: 'Route R-12', type: 'Fast corridor', status: r12, detail: 'ETA 15 min · 20 slots', isRecommended: activeRec === 'route_r12', downstream: ['Depot D-03', 'Shelter S-04'] } },
@@ -118,7 +126,7 @@ export const DependencyGraph = ({ state }: { state: RealityState | null; activeS
       { id: 'depot_d03', type: 'custom', position: { x: 640, y: 100 }, data: { label: 'Depot D-03', type: 'Primary hub', status: b07 === 'UNAVAILABLE' ? 'UNCERTAIN' : 'KNOWN', detail: 'Capacity 40', downstream: ['Shelter S-04'] } },
       { id: 'depot_d04', type: 'custom', position: { x: 640, y: 260 }, data: { label: 'Depot D-04', type: 'Alternate hub', status: 'KNOWN', detail: 'Capacity 30', downstream: ['Shelter S-04'] } },
       { id: 'shelter_s04', type: 'custom', position: { x: 840, y: 180 }, data: { label: 'Shelter S-04', type: 'Target shelter', status: b07 === 'UNAVAILABLE' && activeRec !== 'route_r14' ? 'UNCERTAIN' : 'KNOWN', detail: 'Evacuees 25/50', downstream: ['Guwahati grid'] } },
-      { id: 'vehicle_v02', type: 'custom', position: { x: 80, y: 360 }, data: { label: 'Vehicle V-02', type: 'Transport asset', status: state.vehicles.vehicle_v02?.available !== false ? 'KNOWN' : 'UNAVAILABLE', detail: 'Cap 20 · active dispatch', isRecommended: true, downstream: ['Active route'] } },
+      { id: 'vehicle_v02', type: 'custom', position: { x: 80, y: 360 }, data: { label: 'Vehicle V-02', type: 'Transport asset', status: vehicles.vehicle_v02?.available !== false ? 'KNOWN' : 'UNAVAILABLE', detail: 'Cap 20 · active dispatch', isRecommended: true, downstream: ['Active route'] } },
     ];
 
     const branchNodes: Node[] = [
