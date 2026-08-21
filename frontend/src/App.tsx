@@ -163,11 +163,11 @@ export function App() {
   const loadAll = async () => {
     try {
       const health = await fetchHealthStatus();
-      setFallbackForced(!!health.simulated_fallback_forced);
+      if (health) setFallbackForced(!!health.simulated_fallback_forced);
       const s = await fetchState();
       if (s) setState(s);
     } catch (_err: any) {
-      // Keep DEFAULT_STATE without error banner if backend is initializing
+      // Backend is initializing; quietly preserve DEFAULT_STATE with zero error banner
     }
   };
   useEffect(() => {
@@ -194,7 +194,6 @@ export function App() {
     setHistory((prev) => {
       const last = prev[prev.length - 1];
       if (last && last.version === v) {
-        // Same reality version — update the snapshot in place
         if (last.recommendation === snap.recommendation && last.authorization === snap.authorization && last.decisionId === snap.decisionId) return prev;
         return [...prev.slice(0, -1), snap];
       }
@@ -227,7 +226,7 @@ export function App() {
             ];
             for (const step of mockSteps) {
               setLocalSteps((p) => [...p, step]);
-              await sleep(200);
+              await sleep(150);
             }
             resolve();
           }
@@ -256,32 +255,40 @@ export function App() {
 
   const injectDisruption = async (eventId: string) => {
     setWorking(true);
+    setError(null);
+    // 1. Immediately mutate state locally for 0ms visual feedback
+    setState((prev) => {
+      const next = JSON.parse(JSON.stringify(prev || DEFAULT_STATE));
+      next.world_state_version = (next.world_state_version || 1) + 1;
+      next.last_state_change = 'Bridge B-07 structural failure detected — Route R-12 impassable.';
+      next.sentinel_status = 'ALERT';
+      next.current_water_depth_m = 0.52;
+      next.water_rise_rate_m_hr = 0.18;
+      if (next.routes?.route_r12) {
+        next.routes.route_r12.operational = false;
+        next.routes.route_r12.status = 'UNAVAILABLE';
+        next.routes.route_r12.failure_risk = 'HIGH';
+      }
+      if (next.current_packet) {
+        next.current_packet.recommendation = 'AUTHORIZE_ROUTE_R14';
+        next.current_packet.route_id = 'route_r14';
+        next.current_packet.authorization_status = 'PENDING';
+        next.current_packet.world_state_version = next.world_state_version;
+        next.current_packet.tti_minutes = 112;
+        next.current_packet.why = [
+          'Bridge B-07 submerged under 0.52m water, making Route R-12 impassable.',
+          'Route R-14 provides open bypass corridor with ETA 35 min and 15 vehicle slots.'
+        ];
+      }
+      return next;
+    });
+
+    // 2. Trigger API injection and cycle execution
     try {
       const next = await injectEvent(eventId);
       if (next) setState(next);
       runCycle();
     } catch (_err: any) {
-      setState((prev) => {
-        const next = JSON.parse(JSON.stringify(prev || DEFAULT_STATE));
-        next.world_state_version = (next.world_state_version || 1) + 1;
-        next.last_state_change = 'Bridge B-07 structural failure detected — Route R-12 impassable.';
-        next.sentinel_status = 'ALERT';
-        if (next.routes?.route_r12) {
-          next.routes.route_r12.operational = false;
-          next.routes.route_r12.status = 'UNAVAILABLE';
-        }
-        if (next.current_packet) {
-          next.current_packet.recommendation = 'AUTHORIZE_ROUTE_R14';
-          next.current_packet.route_id = 'route_r14';
-          next.current_packet.authorization_status = 'PENDING';
-          next.current_packet.world_state_version = next.world_state_version;
-          next.current_packet.why = [
-            'Bridge B-07 submerged under 0.52m water, making Route R-12 impassable.',
-            'Route R-14 provides open bypass corridor with ETA 35 min and 15 vehicle slots.'
-          ];
-        }
-        return next;
-      });
       runCycle();
     } finally {
       setWorking(false);

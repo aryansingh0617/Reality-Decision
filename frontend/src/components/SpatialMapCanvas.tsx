@@ -27,17 +27,28 @@ export const SpatialMapCanvas: React.FC<Props> = ({ state, activePlanRouteId = '
   const [layers, setLayers] = useState({ bridges: true, routes: true, vehicles: true, shelters: true, surgeZone: true });
   const [sel, setSel] = useState<any | null>(null);
 
-  const rec = replayRouteId ?? activePlanRouteId;
+  const rec = replayRouteId ?? (state?.current_packet?.route_id || activePlanRouteId);
   const replaying = replayRouteId != null;
   const curDepth = state?.current_water_depth_m ?? 0.35;
   const riseRate = state?.water_rise_rate_m_hr ?? 0.15;
-  // During replay, infer bridge status from the recommended route of that version
-  const r12Op = replaying
-    ? replayRouteId !== 'route_r14'
-    : state?.routes?.route_r12?.operational && !['UNAVAILABLE', 'UNCERTAIN'].includes(state?.routes?.route_r12?.status || '');
-  const b07Status = r12Op ? 'OPERATIONAL' : 'IMPASSABLE';
-  const r14Op = replaying ? true : !!state?.routes?.route_r14?.operational;
-  const highWater = curDepth > 0.5;
+  
+  // Robust check for Bridge B-07 failure across all possible state signals
+  const isB07Down = replaying
+    ? replayRouteId === 'route_r14'
+    : (
+        !state?.routes?.route_r12?.operational ||
+        ['UNAVAILABLE', 'UNCERTAIN', 'FAILED', 'BLOCKED'].includes(state?.routes?.route_r12?.status || '') ||
+        rec === 'route_r14' ||
+        state?.current_packet?.recommendation === 'AUTHORIZE_ROUTE_R14' ||
+        state?.sentinel_status === 'ALERT' ||
+        (state?.last_state_change || '').toLowerCase().includes('bridge') ||
+        curDepth > 0.5
+      );
+
+  const b07Status = isB07Down ? 'IMPASSABLE' : 'OPERATIONAL';
+  const r12Op = b07Status === 'OPERATIONAL';
+  const r14Op = true;
+  const highWater = curDepth > 0.5 || isB07Down;
 
   const C = {
     rec: 'var(--rd-success)',
