@@ -46,3 +46,8 @@ htmlcov/
 backup/
 scratch/
 app/dist/
+*.env
+credentials.json
+*.pem
+*.key
+.credentials
