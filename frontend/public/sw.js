@@ -1,20 +1,8 @@
-// REALITY//DECISION 2.0 — First-Responder Offline PWA Service Worker
+// REALITY//DECISION 2.0 — First-Responder Offline PWA Service Worker (v2.1 Safe)
 
-const CACHE_NAME = 'reality-decision-pwa-v2';
-const STATIC_ASSETS = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/favicon.svg'
-];
+const CACHE_NAME = 'reality-decision-pwa-v3';
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      console.log('[SW] Caching static offline PWA assets...');
-      return cache.addAll(STATIC_ASSETS);
-    })
-  );
   self.skipWaiting();
 });
 
@@ -29,29 +17,39 @@ self.addEventListener('activate', (event) => {
           }
         })
       );
-    })
+    }).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 self.addEventListener('fetch', (event) => {
-  // Network-First with Cache Fallback for API and Assets
-  if (event.request.method === 'GET') {
+  const url = new URL(event.request.url);
+  
+  // NEVER intercept non-GET or extension requests
+  if (event.request.method !== 'GET' || url.protocol.startsWith('chrome-extension')) {
+    return;
+  }
+
+  // NEVER return HTML for JS/CSS/asset requests
+  const isAsset = url.pathname.includes('/assets/') || 
+                  url.pathname.endsWith('.js') || 
+                  url.pathname.endsWith('.css') || 
+                  url.pathname.endsWith('.json') || 
+                  url.pathname.endsWith('.svg') || 
+                  url.pathname.endsWith('.png');
+
+  if (isAsset) {
+    // Assets: Network fetch first, fallback to cached asset (NEVER index.html)
     event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          if (response && response.status === 200) {
-            const responseClone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
-          }
-          return response;
-        })
-        .catch(() => {
-          console.log('[SW] Network offline. Serving cached response:', event.request.url);
-          return caches.match(event.request).then((cachedResponse) => {
-            return cachedResponse || caches.match('/index.html');
-          });
-        })
+      fetch(event.request).catch(() => caches.match(event.request))
     );
+    return;
+  }
+
+  // Navigation requests: Network first, fallback to cached index.html
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).catch(() => caches.match('/index.html'))
+    );
+    return;
   }
 });
