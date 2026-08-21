@@ -392,7 +392,11 @@ def stream_autonomous_mission():
             
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
-@app.get("/api/counterfactuals")
+@app.api_route("/api/mission/autonomous/run", methods=["GET", "POST"])
+def run_autonomous_mission_sync():
+    orch = get_current_orchestrator()
+    orch.run_full_cycle()
+    return {"status": "completed", "state": serialize_state(orch.state)}
 def get_counterfactuals():
     orch = get_current_orchestrator()
     from agents.simulation_agent import SimulationAgent

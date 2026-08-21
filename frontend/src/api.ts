@@ -326,8 +326,10 @@ export function streamAutonomousMission(
   
   events.forEach((eventName) => {
     es.addEventListener(eventName, (event: MessageEvent) => {
-      const data = JSON.parse(event.data);
-      onStep(eventName, data);
+      try {
+        const data = JSON.parse(event.data);
+        onStep(eventName, data);
+      } catch (_e) {}
     });
   });
 
@@ -336,9 +338,16 @@ export function streamAutonomousMission(
     es.close();
   });
 
-  es.addEventListener('error', (event) => {
-    onError(event);
+  let fallbackAttempted = false;
+
+  es.addEventListener('error', () => {
     es.close();
+    if (!fallbackAttempted) {
+      fallbackAttempted = true;
+      fetchJson(`${API_BASE}/mission/autonomous/run`, { method: 'POST' })
+        .then(() => onComplete())
+        .catch((err) => onError(err));
+    }
   });
 
   return () => es.close();
