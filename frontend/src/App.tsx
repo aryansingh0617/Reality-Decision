@@ -6,6 +6,7 @@ import {
   streamAutonomousMission,
   toggleSimulatedFallback,
   fetchHealthStatus,
+  DEFAULT_STATE,
   type RealityState,
   type AgentStep,
 } from './api';
@@ -68,7 +69,7 @@ const NAV: { key: Section; label: string; icon: React.ElementType }[] = [
 export function App() {
   const [section, setSection] = useState<Section>('command');
   const [analysisTab, setAnalysisTab] = useState<AnalysisTab>('counterfactuals');
-  const [state, setState] = useState<RealityState | null>(null);
+  const [state, setState] = useState<RealityState>(DEFAULT_STATE);
   const [localSteps, setLocalSteps] = useState<AgentStep[]>([]);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
