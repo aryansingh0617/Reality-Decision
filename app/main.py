@@ -4,7 +4,8 @@ import json
 import logging
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 
@@ -12,7 +13,8 @@ from app.orchestrator.mission_orchestrator import MissionOrchestrator
 from simulation.scenarios.when_reality_breaks import create_initial_world, get_graph, DEMO_EVENTS
 from core.state.reality_state import RealityState, EntityStatus, MissionPolicy
 from core.state.entity_status import ConfidenceClass
-from agents.llm_client import is_llm_mode_active
+from agents.llm_client import is_llm_mode_active, get_authoritative_status, toggle_simulated_fallback
+from simulation.benchmark.autonomy_harness import run_autonomy_verification_suite
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -51,7 +53,6 @@ def reset_system():
 
 @app.get("/api/health")
 def get_health_status():
-    from agents.llm_client import get_authoritative_status
     auth = get_authoritative_status()
     orch = get_current_orchestrator()
     reasoning_mode = getattr(orch.state, "reasoning_mode", auth["reasoning_mode"])
@@ -63,8 +64,36 @@ def get_health_status():
         "reasoning_mode": reasoning_mode,
         "provider": auth["provider"],
         "model": auth["model"],
-        "failure_reason": auth["failure_reason"]
+        "failure_reason": auth["failure_reason"],
+        "simulated_fallback_forced": auth.get("simulated_fallback_forced", False),
     }
+
+class ToggleFallbackRequest(BaseModel):
+    force_fallback: Optional[bool] = None
+
+@app.post("/api/llm/toggle-fallback")
+def toggle_fallback(req: Optional[ToggleFallbackRequest] = None):
+    force_val = req.force_fallback if req else None
+    forced = toggle_simulated_fallback(force_val)
+    orch = get_current_orchestrator()
+    orch.state.llm_mode_active = not forced
+    orch.state.reasoning_mode = "DETERMINISTIC_FALLBACK" if forced else "LLM_AGENTIC"
+    return {
+        "accepted": True,
+        "simulated_fallback_forced": forced,
+        "reasoning_mode": orch.state.reasoning_mode,
+        "health": get_health_status(),
+    }
+
+@app.get("/api/harness/run")
+def run_proof_of_agency_harness():
+    """Execute the Proof-of-Agency test harness across Scenarios A, B, and C."""
+    try:
+        suite_results = run_autonomy_verification_suite(temperature=0.0)
+        return suite_results
+    except Exception as e:
+        logger.error(f"Error running proof of agency harness: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/agent/execution")
 def get_agent_execution():
@@ -75,14 +104,16 @@ def get_agent_execution():
     return {
         "total_executions": len(history),
         "execution_records": history,
-        "reasoning_mode": getattr(orch.state, "reasoning_mode", "OFFLINE_DETERMINISTIC"),
-        "llm_mode_active": getattr(orch.state, "llm_mode_active", False)
+        "reasoning_mode": getattr(orch.state, "reasoning_mode", "DETERMINISTIC_FALLBACK"),
+        "llm_mode_active": getattr(orch.state, "llm_mode_active", False),
     }
 
 def serialize_packet(packet) -> Optional[dict]:
     if not packet:
         return None
     return {
+        "decision_id": getattr(packet, "decision_id", ""),
+        "world_state_version": getattr(packet, "world_state_version", 1),
         "mission": packet.mission,
         "policy": packet.policy.value if hasattr(packet.policy, "value") else str(packet.policy),
         "recommendation": packet.recommendation,
@@ -95,14 +126,22 @@ def serialize_packet(packet) -> Optional[dict]:
         "alternative": packet.alternative,
         "verification": packet.verification,
         "confidence": packet.confidence.value if hasattr(packet.confidence, "value") else str(packet.confidence),
+        "tti_minutes": getattr(packet, "tti_minutes", 999.0),
+        "fragility": getattr(packet, "fragility", "STABLE"),
         "capacity_gap": packet.capacity_gap,
         "escalation_required": packet.escalation_required,
+        "requires_human_authorization": getattr(packet, "requires_human_authorization", True),
+        "reasoning_mode": getattr(packet, "reasoning_mode", "LLM_AGENTIC"),
         "timestamp": packet.timestamp.isoformat() if packet.timestamp else None,
         "ai_computed_at": packet.ai_computed_at.isoformat() if packet.ai_computed_at else None,
         "human_authorized_at": packet.human_authorized_at.isoformat() if packet.human_authorized_at else None,
         "authorization_status": packet.authorization_status,
         "provenance": packet.provenance,
         "assumptions": packet.assumptions,
+        "evidence_list": getattr(packet, "evidence_list", []),
+        "risks": getattr(packet, "risks", []),
+        "alternatives_considered": getattr(packet, "alternatives_considered", []),
+        "voi_rankings": getattr(packet, "voi_rankings", []),
         "previous_plan": getattr(packet, "previous_plan", ""),
         "cause_of_change": getattr(packet, "cause_of_change", ""),
         "missing_information": getattr(packet, "missing_information", ""),
@@ -183,11 +222,15 @@ def serialize_state(state: RealityState) -> dict:
             }
             for a in state.audit_trail
         ],
+        "world_state_version": getattr(state, "world_state_version", 1),
+        "life_cycle_state": getattr(state, "life_cycle_state", "MISSION_CREATED"),
+        "current_water_depth_m": getattr(state, "current_water_depth", 0.35),
+        "water_rise_rate_m_hr": getattr(state, "water_rise_rate", 0.15),
         "replan_count": state.replan_count,
         "last_state_change": state.last_state_change,
         "sentinel_status": getattr(_orchestrator, "sentinel_status", "MONITORING"),
-        "reasoning_mode": getattr(state, "reasoning_mode", "OFFLINE_DETERMINISTIC"),
-        "llm_mode_active": getattr(state, "llm_mode_active", False)
+        "reasoning_mode": getattr(state, "reasoning_mode", "DETERMINISTIC_FALLBACK"),
+        "llm_mode_active": getattr(state, "llm_mode_active", False),
     }
 
 class InjectEventRequest(BaseModel):
@@ -195,6 +238,7 @@ class InjectEventRequest(BaseModel):
 
 class AuthorizeRequest(BaseModel):
     action: str  # AUTHORIZE, REJECT, REQUEST_VERIFY
+    target_version: Optional[int] = None
 
 class PolicyChangeRequest(BaseModel):
     policy: str  # SAFE, BALANCED, URGENT
@@ -219,7 +263,6 @@ def inject_reality_mutation(req: RealityInjectRequest):
     orch = get_current_orchestrator()
     entity_raw = req.entity_id.lower().replace("-", "")
     
-    # Map common aliases (e.g. b07 -> bridge_b07, r12 -> route_r12, r14 -> route_r14, v02 -> vehicle_v02)
     entity_key = entity_raw
     if not (entity_raw.startswith("bridge_") or entity_raw.startswith("route_") or entity_raw.startswith("vehicle_")):
         if entity_raw.startswith("b"):
@@ -244,7 +287,6 @@ def inject_reality_mutation(req: RealityInjectRequest):
     evt_id = f"evt_inj_{uuid.uuid4().hex[:8]}"
     orch.state.last_state_change = f"Reality disruption: {req.entity_id} transitioned to {req.status}"
     
-    # Run autonomous planner to evaluate disruption, observe, and replan
     orch.run_full_cycle()
     
     return {
@@ -263,9 +305,11 @@ def inject_reality_mutation(req: RealityInjectRequest):
 def inject_event(req: InjectEventRequest):
     orch = get_current_orchestrator()
     event_id = req.event_id
-    if event_id not in DEMO_EVENTS:
-        # Check special case for capacity collapse
-        if event_id == "all_capacity_lost":
+    normalized_id = event_id.replace("evt_", "")
+    if normalized_id in DEMO_EVENTS:
+        event_id = normalized_id
+    elif event_id not in DEMO_EVENTS:
+        if event_id in ("all_capacity_lost", "evt_all_capacity_lost") or normalized_id == "all_capacity_lost":
             orch.set_all_capacity_lost()
             return {"status": "injected", "event": "ALL CAPACITY LOST", "state": serialize_state(orch.state)}
         raise HTTPException(status_code=404, detail=f"Event {event_id} not found in DEMO_EVENTS")
@@ -297,7 +341,7 @@ def authorize_decision(req: AuthorizeRequest):
     if action not in ["AUTHORIZE", "REJECT", "REQUEST_VERIFY"]:
         raise HTTPException(status_code=400, detail="Invalid action")
     
-    orch.authorize(action)
+    orch.authorize(action, target_version=req.target_version)
     return {"status": action, "state": serialize_state(orch.state)}
 
 @app.post("/api/reset")
@@ -311,21 +355,15 @@ def stream_replan():
     orch = get_current_orchestrator()
     
     def event_generator():
-        # Step-by-step runner
         try:
             for step_data in orch.run_agent_pipeline_generator():
-                # We yield each step as Server-Sent Event (SSE)
-                # Ensure we send properly formatted SSE message
                 step_name = step_data["step"]
                 payload = step_data["data"]
                 
-                # If it's the final complete step, serialize the packet
                 if step_name == "complete":
                     payload = serialize_packet(payload)
                 
-                # Artificial delay to make transitions visible to the user
-                time.sleep(1.0)
-                
+                time.sleep(0.5)
                 yield f"event: {step_name}\ndata: {json.dumps(payload)}\n\n"
         except Exception as e:
             logger.error(f"Error in streaming replan: {e}")
@@ -346,7 +384,7 @@ def stream_autonomous_mission():
                 else:
                     payload = step_data.get("data", step_data)
                 
-                time.sleep(0.8)
+                time.sleep(0.5)
                 yield f"event: {step_name}\ndata: {json.dumps(payload)}\n\n"
         except Exception as e:
             logger.error(f"Error in streaming autonomous mission: {e}")
@@ -364,24 +402,35 @@ def get_counterfactuals():
         "counterfactuals": sim_report.counterfactuals,
     }
 
-@app.post("/api/challenge")
-def challenge_plan():
+@app.get("/api/provenance/w3c-prov")
+def get_w3c_prov_graph():
     orch = get_current_orchestrator()
-    from agents.critic_agent import CriticAgent
-    from core.risk.risk_engine import RiskEngine
-    risk = RiskEngine.assess(orch.state)
-    approved, critique, violations = CriticAgent.review_decision(orch.state, orch.state.current_packet, risk)
-    return {
-        "approved": approved,
-        "critique": critique,
-        "violations": violations,
-    }
+    from core.provenance.prov_exporter import W3CProvExporter
+    history = orch.planner_agent.get_execution_history() if hasattr(orch, "planner_agent") and orch.planner_agent else []
+    return W3CProvExporter.export_w3c_prov_jsonld(orch.state.current_packet, orch.state, history)
 
+@app.get("/api/gauge/fetch")
+def fetch_gauge_data(site_id: str = "01646500"):
+    from core.ingestion.water_gauge_api import WaterGaugeAPIClient
+    gauge_data = WaterGaugeAPIClient.fetch_usgs_gauge_data(site_id)
+    curve = WaterGaugeAPIClient.compute_dynamic_tti_curve(
+        gauge_data.get("gage_height_m", 0.52),
+        gauge_data.get("water_rise_rate_m_hr", 0.18),
+        critical_depth_m=0.60
+    )
+    return {"gauge": gauge_data, "tti_curve": curve}
 
-# Static Frontend Bundle Serving for Unified Production Deployment
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, HTMLResponse
+@app.get("/api/drone/waypoints")
+def get_drone_waypoints(entity_id: str = "bridge_b07"):
+    from core.tools.drone_dispatcher import DroneDispatcher
+    return DroneDispatcher.generate_drone_flight_plan(entity_id=entity_id)
 
+@app.get("/api/osm/ingest")
+def ingest_osm_gis():
+    from core.ingestion.osm_ingestion import OSMIngestionEngine
+    return OSMIngestionEngine.fetch_osm_disaster_geojson()
+
+# Static Frontend Bundle Serving
 def _get_frontend_dist():
     possible_paths = [
         os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend", "dist"),
@@ -417,5 +466,3 @@ else:
     @app.get("/")
     def serve_fallback_root():
         return HTMLResponse("<h1>REALITY//DECISION API OPERATIONAL</h1><p>Backend is online. Building frontend assets...</p>")
-
-

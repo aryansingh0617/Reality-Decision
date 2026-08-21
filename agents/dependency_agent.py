@@ -90,15 +90,16 @@ class DependencyAgent:
 
     @classmethod
     def apply_cascade(cls, state: RealityState, cascade: dict) -> RealityState:
-        source_status = cascade.get("new_status", "UNAVAILABLE")
+        source_status = str(cascade.get("new_status", "UNAVAILABLE")).upper()
         for route_id in cascade.get("affected_routes", []):
             if route_id in state.routes:
                 route = state.routes[route_id]
-                if source_status in ("unavailable", "UNAVAILABLE", "conflicting", "CONFLICTING"):
+                if source_status in ("UNAVAILABLE", "FAILED", "BLOCKED"):
                     route.operational = False
-                    route.status = EntityStatus.UNAVAILABLE if source_status.lower() == "unavailable" else EntityStatus.CONFLICTING
-                elif source_status in ("unknown", "UNKNOWN", "uncertain", "UNCERTAIN"):
-                    route.status = EntityStatus.UNCERTAIN
+                    route.status = EntityStatus.UNAVAILABLE
+                elif source_status in ("UNCERTAIN", "UNKNOWN", "CONFLICTING"):
+                    route.operational = False
+                    route.status = EntityStatus.UNCERTAIN if source_status != "CONFLICTING" else EntityStatus.CONFLICTING
                     route.failure_risk = "HIGH"
                 route.confidence = ConfidenceClass.LOW
 

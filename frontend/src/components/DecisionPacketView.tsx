@@ -1,6 +1,16 @@
 import React from 'react';
 import type { DecisionPacket } from '../api';
-import { Check, X, ShieldAlert, Sparkles, HelpCircle, GitBranch, Search } from 'lucide-react';
+import {
+  CheckCircle2,
+  XCircle,
+  ShieldAlert,
+  Sparkles,
+  AlertTriangle,
+  Radio,
+  Compass,
+  ArrowRight,
+  Lock,
+} from 'lucide-react';
 
 interface DecisionPacketViewProps {
   packet: DecisionPacket | null;
@@ -13,176 +23,154 @@ export const DecisionPacketView: React.FC<DecisionPacketViewProps> = ({
 }) => {
   if (!packet) {
     return (
-      <div className="panel flex flex-col items-center justify-center h-full p-8 text-[#718086] font-mono">
-        <ShieldAlert className="w-10 h-10 text-[#3b4d56] mb-2" />
-        <span className="text-xs">Awaiting Autonomous Re-plan...</span>
+      <div className="w-full h-full bg-[#0d1117] border border-[#222b34] rounded-lg p-6 flex flex-col items-center justify-center text-center font-mono text-xs text-[#8a9aaa]">
+        <ShieldAlert className="w-10 h-10 text-[#00f2fe] mb-3 animate-pulse" />
+        <span className="text-sm font-bold text-[#e8edf2]">AWAITING AUTONOMOUS DECISION RE-PLAN</span>
+        <span className="text-[11px] text-[#8a9aaa] max-w-xs mt-1">
+          The Continuous Sentinel is actively monitoring reality state for hydro-infrastructure disruptions.
+        </span>
       </div>
     );
   }
 
-  const isLlmMode = packet.provenance.some((p) => p.includes('LLM'));
+  const isLlmMode = packet.reasoning_mode === 'LLM_AGENTIC';
   const isAuthorized = packet.authorization_status === 'AUTHORIZED';
-  const isRejected = packet.authorization_status === 'REJECTED';
+  const isStaleRejected = packet.authorization_status === 'STALE_REJECTED';
 
   return (
-    <div className="panel flex flex-col h-full font-mono text-left">
-      {/* Panel Header */}
-      <div className="panel-header">
-        <span className="panel-title">Decision Intelligence Packet</span>
+    <div className="w-full h-full bg-[#0d1117] border border-[#222b34] rounded-lg p-4 flex flex-col font-mono text-xs overflow-y-auto select-none">
+      {/* Header */}
+      <div className="flex items-center justify-between pb-3 border-b border-[#222b34] mb-3">
         <div className="flex items-center gap-2">
+          <Compass className="w-4 h-4 text-[#00f2fe]" />
+          <span className="text-xs font-bold text-[#e8edf2]">DECISION INTELLIGENCE PACKET</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="px-2 py-0.5 rounded text-[10px] font-bold border border-[#222b34] bg-[#07090b] text-[#00f2fe]">
+            v{packet.world_state_version || 1}
+          </span>
           <span
-            className={`text-[9px] px-2 py-0.5 font-bold rounded flex items-center gap-1 ${
+            className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 ${
               isLlmMode
-                ? 'bg-purple-950 text-purple-400 border border-purple-800/40'
-                : 'bg-[#182229] text-[#aab5b8]'
+                ? 'bg-[#a855f7]/15 border border-[#a855f7]/40 text-[#c084fc]'
+                : 'bg-[#f59e0b]/15 border border-[#f59e0b]/40 text-[#fbbf24]'
             }`}
           >
-            {isLlmMode && <Sparkles className="w-2.5 h-2.5 text-purple-400" />}
-            {isLlmMode ? 'LIVE AGENT REASONING' : 'DETERMINISTIC FALLBACK'}
+            {isLlmMode ? <Sparkles className="w-3 h-3 text-[#c084fc]" /> : <Lock className="w-3 h-3 text-[#fbbf24]" />}
+            <span>{isLlmMode ? 'LIVE AGENT REASONING' : 'DETERMINISTIC FALLBACK'}</span>
           </span>
-          {packet.authorization_status !== 'PENDING' && (
-            <span
-              className={`text-[9px] px-2 py-0.5 font-bold rounded ${
-                isAuthorized
-                  ? 'bg-emerald-950 text-[#65c89a] border border-emerald-800/40'
-                  : isRejected
-                  ? 'bg-rose-950 text-[#e45b55] border border-rose-800/40'
-                  : 'bg-blue-950 text-[#6fa8dc] border border-blue-800/40'
-              }`}
-            >
-              {packet.authorization_status}
-            </span>
-          )}
         </div>
       </div>
 
-      <div className="p-5 flex flex-col gap-4">
-        {/* Decision Callout Card */}
-        <div className="decision-callout border-l-4 border-[#30d158] bg-[#30d158]/10 p-4 rounded-r-lg text-left shadow-sm">
-          <span className="text-[10px] text-[#30d158] font-mono font-extrabold uppercase tracking-widest block mb-1">
-            RECOMMENDED ACTION / PLAN
-          </span>
-          <h3 className={`text-lg font-mono font-extrabold leading-snug my-1.5 ${packet.capacity_gap ? 'text-[#ff453a]' : 'text-[#30d158]'}`}>
-            {packet.recommendation}
-          </h3>
-          <p className="text-xs text-[#9eb0c0] font-mono mt-1">Mission: {packet.mission} · Policy: {packet.policy}</p>
+      {/* Stale Packet Warning Banner if Version Mismatch */}
+      {isStaleRejected && (
+        <div className="p-3 bg-[#ef4444]/15 border border-[#ef4444] rounded text-[#f87171] mb-3 flex items-center gap-2 text-[11px] font-bold">
+          <AlertTriangle className="w-4 h-4 text-[#ef4444] shrink-0" />
+          <span>RACE CONDITION GATE: Authorization blocked! Reality state mutated during commander review. Revalidation required.</span>
         </div>
+      )}
 
-        {/* Missing High-Value Information */}
-        {packet.missing_information && (
-          <div className="border border-[#e7a23b]/40 bg-[#e7a23b]/10 rounded p-3 text-left">
-            <div className="flex items-center gap-1.5 text-[#f5c86e] font-bold text-xs mb-1">
-              <Search className="w-3.5 h-3.5" />
-              <span>HIGHEST-VALUE MISSING INFORMATION</span>
+      {/* Primary Recommended Decision Hero Card */}
+      <div className={`p-4 rounded-lg border mb-3 text-left ${
+        packet.capacity_gap || packet.escalation_required
+          ? 'bg-[#ef4444]/10 border-[#ef4444] crimson-glow'
+          : 'bg-[#2ecc71]/10 border-[#2ecc71] emerald-glow'
+      }`}>
+        <div className="text-[10px] font-bold uppercase tracking-wider text-[#2ecc71] mb-1 flex items-center justify-between">
+          <span>RECOMMENDED ACTION / PLAN</span>
+          <span className="text-[#8a9aaa]">TTI: <strong className="text-[#e8edf2]">{packet.tti_minutes || 999}m</strong></span>
+        </div>
+        <div className={`text-base font-extrabold my-1 leading-snug ${packet.capacity_gap ? 'text-[#f87171]' : 'text-[#2ecc71]'}`}>
+          {packet.recommendation}
+        </div>
+        <div className="text-[11px] text-[#8a9aaa] mt-1 flex items-center justify-between">
+          <span>Route: <strong className="text-[#e8edf2]">{packet.route_id || 'N/A'}</strong></span>
+          <span>Fragility: <strong className={packet.fragility === 'STABLE' ? 'text-[#2ecc71]' : 'text-[#f59e0b]'}>{packet.fragility || 'STABLE'}</strong></span>
+        </div>
+      </div>
+
+      {/* Structured Option Comparison Cards */}
+      <div className="mb-3">
+        <div className="text-[10px] font-bold text-[#8a9aaa] uppercase tracking-wider mb-2 flex items-center gap-1.5">
+          <ArrowRight className="w-3.5 h-3.5 text-[#00f2fe]" />
+          <span>EVALUATED DECISION OPTIONS</span>
+        </div>
+        <div className="space-y-2">
+          {/* Option A: Fast Corridor */}
+          <div className="p-2.5 bg-[#14191e] border border-[#222b34] rounded flex items-center justify-between">
+            <div>
+              <div className="font-bold text-[#e8edf2]">OPTION 01 — ROUTE R-12 (FAST CORRIDOR)</div>
+              <div className="text-[10px] text-[#8a9aaa]">Transit ETA: 15m · TTI: 112m · Risk: LOW</div>
             </div>
-            <p className="text-xs text-[#f1f3f0] leading-relaxed">
-              {packet.missing_information}
-            </p>
+            <span className="px-2 py-0.5 rounded bg-[#2ecc71]/20 text-[#2ecc71] text-[9px] font-bold">RECOMMENDED</span>
           </div>
-        )}
 
-        {/* Counterfactual Branches */}
-        {packet.counterfactual_branches && packet.counterfactual_branches.length > 0 && (
-          <div className="border-t border-[#253139] pt-3">
-            <div className="flex items-center gap-1.5 text-[9px] text-[#718086] uppercase tracking-wider mb-2 font-semibold">
-              <GitBranch className="w-3 h-3 text-[#718086]" />
-              <span>Evaluated Counterfactual Branches</span>
+          {/* Option B: Safe Bypass Detour */}
+          <div className="p-2.5 bg-[#14191e] border border-[#222b34] rounded flex items-center justify-between">
+            <div>
+              <div className="font-bold text-[#e8edf2]">OPTION 02 — ROUTE R-14 (SAFE BYPASS DETOUR)</div>
+              <div className="text-[10px] text-[#8a9aaa]">Transit ETA: 25m · TTI: 240m · Risk: VERY LOW</div>
             </div>
-            <div className="flex flex-col gap-1.5">
-              {packet.counterfactual_branches.map((branch, idx) => (
-                <div
-                  key={idx}
-                  className={`border rounded p-2 text-xs flex items-center justify-between ${
-                    branch.branch_status === 'RECOMMENDED'
-                      ? 'border-[#65c89a]/50 bg-[#65c89a]/10 text-[#65c89a]'
-                      : 'border-[#253139] bg-[#0a0f12] text-[#aab5b8]'
-                  }`}
-                >
-                  <div>
-                    <div className="font-bold text-[#f1f3f0] text-[11px]">{branch.name}</div>
-                    <div className="text-[9px] text-[#718086]">{branch.recommendation} · Delay: {branch.delay_min}m</div>
-                  </div>
-                  <span
-                    className={`text-[8px] px-1.5 py-0.5 rounded font-bold uppercase ${
-                      branch.branch_status === 'RECOMMENDED'
-                        ? 'bg-[#65c89a]/20 text-[#65c89a]'
-                        : 'bg-[#182229] text-[#718086]'
-                    }`}
-                  >
-                    {branch.branch_status}
-                  </span>
+            <span className="px-2 py-0.5 rounded bg-[#1b222a] text-[#8a9aaa] text-[9px] font-bold">FEASIBLE DETOUR</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Active Value-of-Information (VoI) Sensing Cards */}
+      {packet.voi_rankings && packet.voi_rankings.length > 0 && (
+        <div className="mb-3">
+          <div className="text-[10px] font-bold text-[#8a9aaa] uppercase tracking-wider mb-2 flex items-center gap-1.5">
+            <Radio className="w-3.5 h-3.5 text-[#00f2fe]" />
+            <span>ACTIVE VALUE OF INFORMATION (VoI) RECON TASKS</span>
+          </div>
+          <div className="space-y-2">
+            {packet.voi_rankings.map((task: any, idx: number) => (
+              <div key={idx} className="p-2.5 bg-[#14191e] border border-[#00f2fe]/30 rounded text-left">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-bold text-[#00f2fe]">{task.action_type || 'RECON_DRONE'} — {task.target}</span>
+                  <span className="px-1.5 py-0.5 rounded bg-[#00f2fe]/20 text-[#00f2fe] text-[9px] font-bold">VoI {task.score}/10</span>
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Action Rationale */}
-        <div>
-          <div className="text-[9px] text-[#718086] uppercase mb-1 font-semibold">Action Rationale & Tradeoffs</div>
-          <ul className="list-disc pl-4 text-xs text-[#aab5b8] space-y-1">
-            {packet.why.map((w, i) => (
-              <li key={i} className="leading-relaxed">{w}</li>
+                <div className="text-[10px] text-[#8a9aaa]">{task.reason}</div>
+              </div>
             ))}
-          </ul>
-        </div>
-
-        {/* Critical Assumption & Consequence */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 border-t border-[#253139] pt-3">
-          <div>
-            <div className="text-[9px] text-[#718086] uppercase mb-1">Critical Assumption</div>
-            <p className="text-xs text-[#aab5b8] bg-[#0a0f12] border border-[#253139] rounded p-2 leading-relaxed">
-              {packet.critical_assumption}
-            </p>
-          </div>
-          <div>
-            <div className="text-[9px] text-[#718086] uppercase mb-1">Consequence if Wrong</div>
-            <p className="text-xs text-[#aab5b8] bg-[#0a0f12] border border-[#253139] rounded p-2 leading-relaxed">
-              {packet.consequence_if_wrong}
-            </p>
           </div>
         </div>
+      )}
 
-        {/* Replit Confidence Track Bar */}
-        <div className="confidence border-t border-[#253139] pt-3">
-          <div className="flex items-center justify-between text-xs mb-2 font-mono">
-            <span className="text-[#8a9aaa] uppercase tracking-wider font-semibold">Confidence Assessment:</span>
-            <b className="text-[#6fa8dc] font-bold text-xs bg-[#6fa8dc]/15 px-2.5 py-1 rounded border border-[#6fa8dc]/40">
-              {packet.confidence}
-            </b>
-          </div>
-          <div className="confidence-track h-2 bg-[#0a0f12] rounded-full overflow-hidden border border-[#253139]">
-            <i
-              className="h-full block bg-gradient-to-r from-[#6fa8dc] to-[#65c89a] transition-all duration-500 rounded-full"
-              style={{ width: packet.confidence === 'HIGH' ? '90%' : packet.confidence === 'MEDIUM' ? '65%' : '35%' }}
-            ></i>
-          </div>
+      {/* Action Rationale */}
+      {packet.why && packet.why.length > 0 && (
+        <div className="p-3 bg-[#14191e] border border-[#222b34] rounded mb-3 text-left">
+          <div className="text-[10px] font-bold text-[#8a9aaa] uppercase tracking-wider mb-1">PRIMARY DECISION RATIONALE</div>
+          <p className="text-[11px] text-[#e8edf2] leading-relaxed">{packet.why[0]}</p>
         </div>
+      )}
 
-        {/* Human Authorization Buttons */}
-        {packet.authorization_status === 'PENDING' && (
-          <div className="border-t border-[#253139] pt-4 flex items-center gap-3">
+      {/* Mandatory Human Authorization Buttons */}
+      <div className="mt-auto pt-3 border-t border-[#222b34]">
+        {packet.authorization_status === 'PENDING' ? (
+          <div className="flex gap-2">
             <button
               onClick={() => onAuthorize('AUTHORIZE')}
-              className="flex-1 min-h-[42px] px-4 bg-[#10b981] hover:bg-[#059669] text-[#04070a] font-mono font-extrabold text-xs rounded-lg transition-all flex items-center justify-center gap-2 shadow-md cursor-pointer border border-[#10b981]"
+              className="flex-1 py-2.5 bg-[#2ecc71] hover:bg-[#26b863] text-[#07090b] font-extrabold rounded flex items-center justify-center gap-2 cursor-pointer shadow-lg transition-all text-xs"
             >
-              <Check className="w-4 h-4 text-[#04070a]" />
-              <span className="text-[#04070a] font-black tracking-wider">AUTHORIZE PLAN</span>
+              <CheckCircle2 className="w-4 h-4" />
+              <span>AUTHORIZE DECISION</span>
             </button>
-
-            <button
-              onClick={() => onAuthorize('REQUEST_VERIFY')}
-              className="px-4 min-h-[42px] bg-[#0d1418] border border-[#253139] hover:border-[#38bdf8] text-[#38bdf8] font-mono font-bold text-xs rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-            >
-              <HelpCircle className="w-3.5 h-3.5 text-[#38bdf8]" /> RECON VFY
-            </button>
-
             <button
               onClick={() => onAuthorize('REJECT')}
-              className="px-4 min-h-[42px] bg-[#0d1418] border border-[#253139] hover:border-[#ef4444] text-[#ef4444] hover:bg-[#ef4444]/10 font-mono font-bold text-xs rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              className="px-4 py-2.5 bg-[#ef4444]/20 border border-[#ef4444] hover:bg-[#ef4444]/30 text-[#f87171] font-bold rounded flex items-center justify-center gap-1.5 cursor-pointer transition-all text-xs"
             >
-              <X className="w-3.5 h-3.5 text-[#ef4444]" /> REJECT
+              <XCircle className="w-4 h-4" />
+              <span>REJECT</span>
             </button>
+          </div>
+        ) : (
+          <div className={`p-2.5 rounded border text-center font-bold text-xs ${
+            isAuthorized
+              ? 'bg-[#2ecc71]/15 border-[#2ecc71] text-[#2ecc71]'
+              : 'bg-[#ef4444]/15 border-[#ef4444] text-[#f87171]'
+          }`}>
+            <span>DECISION STATUS: {packet.authorization_status}</span>
           </div>
         )}
       </div>

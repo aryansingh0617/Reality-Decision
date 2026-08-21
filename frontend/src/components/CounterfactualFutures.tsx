@@ -11,19 +11,22 @@ interface BranchData {
 }
 
 interface CounterfactualFuturesProps {
-  branches: BranchData[];
+  branches?: BranchData[];
+  packet?: any | null;
   onSelectBranch?: (branch: BranchData) => void;
 }
 
 export const CounterfactualFutures: React.FC<CounterfactualFuturesProps> = ({
-  branches,
+  branches: rawBranches,
+  packet,
   onSelectBranch,
 }) => {
+  const branches = rawBranches || (packet?.counterfactual_branches || []);
   const [selectedBranchName, setSelectedBranchName] = useState<string | null>(
     branches[0]?.name || null
   );
 
-  const activeBranch = branches.find((b) => b.name === selectedBranchName) || branches[0];
+  const activeBranch = branches.find((b: any) => b.name === selectedBranchName) || branches[0];
 
   return (
     <div className="panel font-mono text-left flex flex-col h-full">
@@ -38,7 +41,7 @@ export const CounterfactualFutures: React.FC<CounterfactualFuturesProps> = ({
       <div className="p-4 flex flex-col gap-3 flex-1">
         {/* Branch Selection List */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
-          {branches.map((b) => {
+          {branches.map((b: any) => {
             const isSelected = b.name === (selectedBranchName || branches[0]?.name);
             const isRec = b.branch_status === 'RECOMMENDED';
             const isUncertain = b.branch_status === 'UNCERTAIN';

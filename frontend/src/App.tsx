@@ -1,68 +1,62 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import {
   fetchState,
-  initializeMission,
   injectEvent,
-  changePolicy,
   authorizeDecision,
-  resetMission,
   streamAutonomousMission,
-  fetchCounterfactuals,
-  challengePlan,
+  toggleSimulatedFallback,
+  fetchHealthStatus,
   type RealityState,
   type AgentStep,
 } from './api';
-import { CinematicOpening } from './components/CinematicOpening';
-import { DependencyGraph } from './components/DependencyGraph';
-import { AgentTrace } from './components/AgentTrace';
+
+import { SpatialMapCanvas } from './components/SpatialMapCanvas';
 import { DecisionPacketView } from './components/DecisionPacketView';
-import { CausalTrace } from './components/CausalTrace';
+import { AgentTrace } from './components/AgentTrace';
+import { DependencyGraph } from './components/DependencyGraph';
 import { CounterfactualFutures } from './components/CounterfactualFutures';
-import { DecisionBoundaryGauge } from './components/DecisionBoundaryGauge';
-import { RoleViews } from './components/RoleViews';
+import { W3CProvView } from './components/W3CProvView';
+import { VerifyAutonomyPanel } from './components/VerifyAutonomyPanel';
 import { GuidedWalkthrough } from './components/GuidedWalkthrough';
-import { ControlInfoModal, WhatJustHappenedPanel } from './components/ContextualHelp';
+
 import {
+  Compass,
   Play,
-  RotateCcw,
-  PlusCircle,
   AlertTriangle,
   GitBranch,
-  ShieldAlert,
-  Search,
-  Command,
-  Activity,
+  ShieldCheck,
+  Zap,
   Sparkles,
-  Info,
+  MapPin,
+  FileText,
+  Activity,
+  Layers,
+  FileJson,
 } from 'lucide-react';
 
-const SPRING = {
-  BUTTER: { type: 'spring' as const, stiffness: 100, damping: 20, mass: 0.8 },
-  SILKY: { type: 'spring' as const, stiffness: 150, damping: 25, mass: 0.6 },
-  CINEMATIC: { type: 'spring' as const, stiffness: 80, damping: 30, mass: 1.2 },
-};
+export function App() {
+  const [activeTab, setActiveTab] = useState<
+    'mission_control' | 'spatial_map' | 'decision_intelligence' | 'agent_telemetry' | 'counterfactuals' | 'dependency_graph' | 'w3c_prov'
+  >('mission_control');
 
-function App() {
-  const [showOpening, setShowOpening] = useState(true);
   const [state, setState] = useState<RealityState | null>(null);
-  const [activeStep, setActiveStep] = useState<string | null>(null);
   const [localSteps, setLocalSteps] = useState<AgentStep[]>([]);
   const [isReplanning, setIsReplanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [counterfactualInfo, setCounterfactualInfo] = useState<string | null>(null);
-  const [role, setRole] = useState<'GUEST' | 'OPERATOR' | 'COMMAND' | 'ADMIN'>('OPERATOR');
   const [isWalkthroughOpen, setIsWalkthroughOpen] = useState(false);
-  const [activeInfoControl, setActiveInfoControl] = useState<string | null>(null);
+  const [isVerifyAutonomyOpen, setIsVerifyAutonomyOpen] = useState(false);
+  const [isSimulatedFallbackForced, setIsSimulatedFallbackForced] = useState(false);
 
   const getISTTime = () => {
-    return new Intl.DateTimeFormat('en-GB', {
-      timeZone: 'Asia/Kolkata',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false,
-    }).format(new Date()) + ' IST';
+    return (
+      new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Asia/Kolkata',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+      }).format(new Date()) + ' IST'
+    );
   };
 
   const [istTime, setIstTime] = useState(getISTTime);
@@ -72,448 +66,324 @@ function App() {
     return () => clearInterval(interval);
   }, []);
 
+  const loadHealthAndState = async () => {
+    try {
+      const health = await fetchHealthStatus();
+      setIsSimulatedFallbackForced(!!health.simulated_fallback_forced);
+      const data = await fetchState();
+      setState(data);
+    } catch (err: any) {
+      setError(err.message || 'Failed to fetch state');
+    }
+  };
+
   useEffect(() => {
-    fetchState()
-      .then(setState)
-      .catch((err) => {
-        console.error(err);
-        setError('Connection to REALITY//DECISION backend failed. Ensure API server is running on port 8000.');
-      });
+    loadHealthAndState();
   }, []);
 
-  const handleInitialize = async () => {
+  const handleToggleFallback = async () => {
     try {
-      setError(null);
-      setCounterfactualInfo(null);
-      const newState = await initializeMission();
-      setState(newState);
-      setLocalSteps([]);
-    } catch (err) {
-      setError('Failed to initialize mission.');
+      const res = await toggleSimulatedFallback(!isSimulatedFallbackForced);
+      setIsSimulatedFallbackForced(res.simulated_fallback_forced);
+      await loadHealthAndState();
+    } catch (err: any) {
+      setError(err.message || 'Failed to toggle simulated fallback');
     }
   };
 
-  const handleInject = async (eventId: string) => {
-    try {
-      setError(null);
-      setCounterfactualInfo(null);
-      const newState = await injectEvent(eventId);
-      setState(newState);
-    } catch (err) {
-      setError(`Failed to inject event: ${eventId}`);
-    }
-  };
-
-  const handlePolicyChange = async (policy: string) => {
-    try {
-      setError(null);
-      const newState = await changePolicy(policy);
-      setState(newState);
-    } catch (err) {
-      setError('Failed to update policy mode.');
-    }
-  };
-
-  const handleAuthorize = async (action: string) => {
-    try {
-      setError(null);
-      const newState = await authorizeDecision(action);
-      setState(newState);
-    } catch (err) {
-      setError('Failed to record authorization action.');
-    }
-  };
-
-  const handleReset = async () => {
-    try {
-      setError(null);
-      setCounterfactualInfo(null);
-      const newState = await resetMission();
-      setState(newState);
-      setLocalSteps([]);
-    } catch (err) {
-      setError('Failed to reset simulation.');
-    }
-  };
-
-  const handleRunCounterfactuals = async () => {
-    try {
-      setError(null);
-      const data = await fetchCounterfactuals();
-      setCounterfactualInfo(
-        `Generated ${data.counterfactuals.length} candidate branches. Recommended: ${data.base_case.name}`
-      );
-    } catch (err) {
-      setError('Failed to execute counterfactual branch analysis.');
-    }
-  };
-
-  const handleChallengePlan = async () => {
-    try {
-      setError(null);
-      const data = await challengePlan();
-      setCounterfactualInfo(
-        `Critic Challenge Result: ${data.approved ? 'APPROVED' : 'REJECTED'} — ${data.critique}`
-      );
-    } catch (err) {
-      setError('Failed to challenge current plan.');
-    }
-  };
-
-  const handleStartAutonomousMission = () => {
-    if (isReplanning) return;
+  const handleStartMission = () => {
     setIsReplanning(true);
-    setLocalSteps([]);
-    setActiveStep('evidence');
     setError(null);
-    setCounterfactualInfo(null);
+    setLocalSteps([]);
 
-    const closeStream = streamAutonomousMission(
-      (stepName, payload) => {
-        if (stepName === 'synthetic_execution') {
+    streamAutonomousMission(
+      (eventName, data) => {
+        if (eventName === 'complete') {
           fetchState().then(setState);
-        } else if (payload && payload.agent) {
-          setLocalSteps((prev) => {
-            const filtered = prev.filter((s) => s.agent !== payload.agent);
-            return [...filtered, payload];
-          });
-
-          const stepOrder = ['evidence', 'dependency', 'verification', 'simulation', 'information', 'decision', 'critic'];
-          const idx = stepOrder.indexOf(stepName);
-          if (idx !== -1 && idx < stepOrder.length - 1) {
-            setActiveStep(stepOrder[idx + 1]);
-          } else {
-            setActiveStep(null);
-          }
+        } else if (typeof data === 'object' && data !== null && 'agent' in data) {
+          setLocalSteps((prev) => [...prev, data as AgentStep]);
         }
       },
       () => {
         setIsReplanning(false);
-        setActiveStep(null);
         fetchState().then(setState);
       },
       (_err) => {
         setIsReplanning(false);
-        setActiveStep(null);
-        fetchState().then(setState);
       }
     );
-
-    return () => closeStream();
   };
 
-  if (!state) {
-    return (
-      <div className="app-shell flex flex-col items-center justify-center min-h-screen bg-[#0a0d0f] text-[#e8edf2] font-mono p-4">
-        {error ? (
-          <div className="border border-[#e74c3c]/40 bg-[#e74c3c]/10 text-[#e74c3c] p-6 rounded-lg max-w-md text-center">
-            <AlertTriangle className="w-10 h-10 mx-auto mb-3" />
-            <h3 className="font-bold text-sm mb-1">Operational Error</h3>
-            <p className="text-xs text-[#8a9aaa] mb-4">{error}</p>
-            <button onClick={handleInitialize} className="primary-btn">
-              Retry Connection
-            </button>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center gap-3">
-            <div className="w-8 h-8 border-2 border-[#f39c12] border-t-transparent rounded-full animate-spin"></div>
-            <span className="text-xs text-[#8a9aaa] animate-pulse uppercase tracking-wider">
-              CONNECTING TACTICAL COMMAND CORRIDOR...
-            </span>
-          </div>
-        )}
-      </div>
-    );
-  }
+  const handleAuthorize = async (action: string) => {
+    try {
+      const targetVersion = state?.world_state_version;
+      const updatedState = await authorizeDecision(action, targetVersion);
+      setState(updatedState);
+    } catch (err: any) {
+      setError(err.message || 'Failed to authorize');
+    }
+  };
 
-  const stepsToShow = localSteps.length > 0 ? localSteps : state.agent_steps;
-  const availableVehicleCount = Object.values(state.vehicles).filter((v) => v.available).length;
-  const totalVehicleCapacity = Object.values(state.vehicles)
-    .filter((v) => v.available)
-    .reduce((acc, v) => acc + v.capacity, 0);
+  const handleInjectEvent = async (eventId: string) => {
+    try {
+      const updatedState = await injectEvent(eventId);
+      setState(updatedState);
+      handleStartMission();
+    } catch (err: any) {
+      setError(err.message || 'Failed to inject event');
+    }
+  };
 
-  const counterfactualBranches = state.current_packet?.counterfactual_branches || [];
-  const isSentinelAlert = state.sentinel_status === 'PLAN_AT_RISK';
-  const isAuthorized = state.current_packet?.authorization_status === 'AUTHORIZED';
-
-  const currentConfidence = state.current_packet?.confidence === 'HIGH' ? 88 : state.current_packet?.confidence === 'MEDIUM' ? 72 : 55;
+  const isDeterministicFallback = !state?.llm_mode_active || state?.reasoning_mode === 'DETERMINISTIC_FALLBACK';
 
   return (
-    <div className="app-shell flex flex-col min-h-screen bg-[#0a0d0f] text-[#e8edf2] font-sans selection:bg-[#f39c12]/30">
-      {/* Cinematic Opening Overlay */}
-      {showOpening && <CinematicOpening onDismiss={() => setShowOpening(false)} />}
-
-      {/* Topbar Command Branding */}
-      <header className="topbar bg-[#14181a] border-b border-[#242a2e] px-6 py-3 flex items-center justify-between" id="topbar-container">
-        <div className="brand flex items-center gap-3">
-          <div className="brand-mark w-8 h-8 bg-[#1e2428] border border-[#242a2e] rounded flex items-center justify-center text-[#2ecc71]">
-            <Command className="w-4 h-4" />
+    <div className="flex flex-col h-screen w-screen bg-[#07090b] text-[#e8edf2] font-sans overflow-hidden select-none">
+      {error && (
+        <div className="bg-[#ef4444] text-[#07090b] px-4 py-1.5 font-mono text-xs font-extrabold flex items-center justify-between z-50">
+          <span>SYSTEM ERROR: {error}</span>
+          <button onClick={() => setError(null)} className="cursor-pointer underline">DISMISS</button>
+        </div>
+      )}
+      {/* 1. TOP EXECUTIVE HEADER */}
+      <header className="h-14 bg-[#0d1117] border-b border-[#222b34] px-5 flex items-center justify-between z-30 shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-[#00f2fe]/10 border border-[#00f2fe]/40 flex items-center justify-center text-[#00f2fe]">
+            <Compass className="w-5 h-5" />
           </div>
-          <div className="brand-copy text-left">
-            <div className="brand-name text-sm font-bold text-[#e8edf2] tracking-wider">REALITY//DECISION</div>
-            <div className="brand-sub text-[10px] text-[#8a9aaa] font-mono">AUTONOMOUS MULTI-AGENT COMMAND PLATFORM v0.3</div>
+          <div>
+            <div className="text-sm font-extrabold tracking-wider text-[#e8edf2] flex items-center gap-2 font-mono">
+              <span>REALITY//DECISION 2.0</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded bg-[#00f2fe]/20 text-[#00f2fe] border border-[#00f2fe]/40">
+                v{state?.world_state_version || 1}
+              </span>
+            </div>
+            <div className="text-[10px] text-[#8a9aaa] font-mono">AUTONOMOUS DECISION-INTELLIGENCE PLATFORM</div>
           </div>
         </div>
 
-        <div className="topbar-meta flex items-center gap-4 font-mono text-xs">
-          {/* Guided Walkthrough Button */}
+        {/* Top Header Controls */}
+        <div className="flex items-center gap-3 font-mono text-xs">
           <button
-            onClick={() => setIsWalkthroughOpen(true)}
-            className="px-3 py-1.5 bg-[#6fa8dc] text-[#07090b] font-bold rounded flex items-center gap-1.5 hover:bg-[#9cc7ed] transition-all cursor-pointer shadow-md text-xs"
+            onClick={() => setIsVerifyAutonomyOpen(true)}
+            className="px-3 py-1.5 bg-[#2ecc71] text-[#07090b] font-extrabold rounded flex items-center gap-1.5 hover:bg-[#26b863] transition-all cursor-pointer shadow-md text-xs"
           >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>GUIDED WALKTHROUGH</span>
+            <ShieldCheck className="w-4 h-4" />
+            <span>VERIFY AUTONOMY</span>
           </button>
 
-          <div className="demo-chip bg-[#0a0d0f] border border-[#242a2e] px-3 py-1 rounded text-[#8a9aaa] text-[10px] flex items-center gap-2">
-            <span className="text-[#3498db] font-bold">{istTime}</span>
-            <span className="text-[#242a2e]">│</span>
-            <span>SYNTHETIC SCENARIO</span>
+          <button
+            onClick={() => setIsWalkthroughOpen(true)}
+            className="px-3 py-1.5 bg-[#38bdf8] text-[#07090b] font-extrabold rounded flex items-center gap-1.5 hover:bg-[#7dd3fc] transition-all cursor-pointer shadow-md text-xs"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>WALKTHROUGH</span>
+          </button>
+
+          <button
+            onClick={handleToggleFallback}
+            className={`px-3 py-1.5 rounded text-xs font-bold border transition-all flex items-center gap-1.5 cursor-pointer ${
+              isSimulatedFallbackForced
+                ? 'bg-[#ef4444]/20 border-[#ef4444] text-[#ef4444]'
+                : 'bg-[#14191e] border-[#222b34] text-[#8a9aaa] hover:text-[#e8edf2]'
+            }`}
+          >
+            <Zap className="w-3.5 h-3.5" />
+            <span>{isSimulatedFallbackForced ? 'SIMULATED FAIL: ON' : 'SIMULATE API FAIL'}</span>
+          </button>
+
+          <div className="bg-[#07090b] border border-[#222b34] px-2.5 py-1 rounded text-[#00f2fe] text-[11px] font-bold">
+            {istTime}
           </div>
 
-          <div className="flex items-center gap-2 border border-[#242a2e] bg-[#0a0d0f] px-2.5 py-1 rounded">
-            <span className={`w-2 h-2 rounded-full ${state.llm_mode_active ? 'bg-[#3498db]' : 'bg-[#2ecc71]'}`}></span>
-            <span className={state.llm_mode_active ? 'text-[#3498db] font-bold' : 'text-[#2ecc71] font-bold'}>
-              REASONING: {state.reasoning_mode || (state.llm_mode_active ? 'LLM-ENHANCED' : 'OFFLINE DETERMINISTIC')}
-            </span>
-            <button
-              onClick={() => setActiveInfoControl('reasoning_mode')}
-              className="text-[#718086] hover:text-[#6fa8dc] ml-1 cursor-pointer"
-              title="Inspect Reasoning Mode"
-            >
-              <Info className="w-3 h-3" />
-            </button>
+          <div
+            className={`flex items-center gap-2 border px-3 py-1 rounded font-mono text-xs ${
+              isDeterministicFallback
+                ? 'border-[#f59e0b]/60 bg-[#f59e0b]/15 text-[#fbbf24]'
+                : 'border-[#2ecc71]/60 bg-[#2ecc71]/15 text-[#2ecc71]'
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full ${isDeterministicFallback ? 'bg-[#f59e0b] animate-pulse' : 'bg-[#2ecc71]'}`} />
+            <span className="font-extrabold uppercase">{isDeterministicFallback ? 'DETERMINISTIC FALLBACK' : 'LIVE MODEL'}</span>
           </div>
         </div>
       </header>
 
-      {/* Main Command Wrap */}
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={SPRING.CINEMATIC}
-        className="max-w-[1440px] w-full mx-auto px-6 py-6 flex flex-col gap-6"
-      >
-        {/* Role Selector & Narrative Panel Component */}
-        <RoleViews state={state} role={role} onRoleChange={setRole} onAuthorize={handleAuthorize} />
+      {/* 2. MAIN 3-COLUMN APP SHELL */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* LEFT NAVIGATION RAIL (Inspired by Reference Image) */}
+        <aside className="w-64 bg-[#0d1117] border-r border-[#222b34] flex flex-col justify-between shrink-0 font-mono text-xs z-20">
+          <div className="p-3 space-y-1">
+            <div className="text-[10px] font-bold text-[#8a9aaa] px-3 py-2 uppercase tracking-wider">COMMAND NAVIGATION</div>
 
-        {/* Hero Mission Statement Banner */}
-        <section className="briefing bg-[#14181a] border border-[rgba(255,255,255,0.1)] rounded-xl p-6 text-left backdrop-blur-md shadow-lg" id="mission-briefing-panel">
-          <div className="text-[10px] font-mono text-[#94a3b8] uppercase tracking-widest mb-1.5 font-bold">
-            OPERATION ASSAM FLOOD <span className="text-[#64748b]">/</span> INCIDENT COMMAND 04
-          </div>
-          <h2 className="text-xl font-bold text-[#f8fafc] mb-2 leading-tight">
-            Evacuation Logistics & Counterfactual Re-planning
-          </h2>
-          <p className="text-xs text-[#94a3b8] leading-relaxed max-w-3xl font-sans">
-            Autonomous multi-agent decision support for environments where reality changes faster than humans can manually re-plan. Real-world disruptions trigger independent agent investigation, dependency cascades, counterfactual simulations, and autonomous replanning.
-          </p>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-5 pt-4 border-t border-[#334155] text-xs font-mono">
-            <div>
-              <span className="text-[#64748b] block text-[9px] uppercase font-bold tracking-wider">TARGET SHELTER</span>
-              <strong className="text-[#f8fafc] font-semibold">Shelter S-04</strong>
-            </div>
-            <div>
-              <span className="text-[#64748b] block text-[9px] uppercase font-bold tracking-wider">PRIMARY DEPOT</span>
-              <strong className="text-[#f8fafc] font-semibold">Depot D-03</strong>
-            </div>
-            <div>
-              <span className="text-[#64748b] block text-[9px] uppercase font-bold tracking-wider">VEHICLE CAPACITY</span>
-              <strong className="text-[#f8fafc] font-semibold">{totalVehicleCapacity} Slots ({availableVehicleCount} Trucks)</strong>
-            </div>
-            <div>
-              <span className="text-[#64748b] block text-[9px] uppercase font-bold tracking-wider">ENVIRONMENT</span>
-              <strong className="text-[#f59e0b] uppercase font-bold">{state.weather}</strong>
-            </div>
-          </div>
-        </section>
-
-        {/* Live Context Panel: What Just Happened? */}
-        <WhatJustHappenedPanel state={state} />
-
-        {/* Continuous Sentinel Status Banner */}
-        <motion.section
-          transition={SPRING.BUTTER}
-          className={`p-4 rounded-xl border font-mono text-xs flex flex-wrap items-center justify-between gap-3 transition-all backdrop-blur-md ${
-            isSentinelAlert
-              ? 'border-[#ff453a] bg-[#ff453a]/15 text-[#ff453a] shadow-lg shadow-[#ff453a]/25'
-              : isAuthorized
-              ? 'border-[#30d158]/50 bg-[#30d158]/10 text-[#30d158]'
-              : 'border-[rgba(255,255,255,0.1)] bg-[#0d1418]/80 text-[#9eb0c0]'
-          }`}
-        >
-          <div className="flex items-center gap-3 flex-1 min-w-[280px]">
-            <Activity className={`w-4 h-4 flex-shrink-0 ${isSentinelAlert ? 'animate-spin text-[#ff453a]' : 'text-[#0a84ff]'}`} />
-            <span className="font-bold uppercase tracking-wider text-[#f5f7fa]">CONTINUOUS SENTINEL STATUS:</span>
-            <span className="text-[#a0b2c6] font-medium leading-relaxed">
-              {isSentinelAlert
-                ? '⚠ AUTHORIZED PLAN AT RISK — Post-authorization reality shift detected! Autonomously replanning...'
-                : isAuthorized
-                ? 'AUTHORIZED PLAN MONITORING — Active Sentinel scanning environment for violations'
-                : 'STANDBY — Awaiting initial plan authorization'}
-            </span>
-          </div>
-          <div className="text-[10px] font-bold tracking-widest uppercase bg-[#070a0e] px-3 py-1 rounded-md border border-[rgba(255,255,255,0.1)]">
-            {isSentinelAlert ? 'ALERT: REPLAN ACTIVE' : isAuthorized ? 'SENTINEL ACTIVE' : 'SENTINEL IDLE'}
-          </div>
-        </motion.section>
-
-        {/* Scenario Controls & Action Rail */}
-        <section className="flex flex-wrap items-center justify-between gap-4 border-y border-[rgba(255,255,255,0.1)] py-4">
-          <div className="action-rail flex items-center gap-3 flex-wrap">
             <button
-              onClick={handleStartAutonomousMission}
+              onClick={() => setActiveTab('mission_control')}
+              className={`w-full px-3 py-2.5 rounded flex items-center gap-2.5 transition-all cursor-pointer font-bold ${
+                activeTab === 'mission_control' ? 'bg-[#00f2fe]/15 text-[#00f2fe] border border-[#00f2fe]/40' : 'text-[#8a9aaa] hover:text-[#e8edf2] hover:bg-[#14191e]'
+              }`}
+            >
+              <Compass className="w-4 h-4" />
+              <span>Mission Control</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('spatial_map')}
+              className={`w-full px-3 py-2.5 rounded flex items-center gap-2.5 transition-all cursor-pointer font-bold ${
+                activeTab === 'spatial_map' ? 'bg-[#00f2fe]/15 text-[#00f2fe] border border-[#00f2fe]/40' : 'text-[#8a9aaa] hover:text-[#e8edf2] hover:bg-[#14191e]'
+              }`}
+            >
+              <MapPin className="w-4 h-4" />
+              <span>Spatial Map</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('decision_intelligence')}
+              className={`w-full px-3 py-2.5 rounded flex items-center gap-2.5 transition-all cursor-pointer font-bold ${
+                activeTab === 'decision_intelligence' ? 'bg-[#00f2fe]/15 text-[#00f2fe] border border-[#00f2fe]/40' : 'text-[#8a9aaa] hover:text-[#e8edf2] hover:bg-[#14191e]'
+              }`}
+            >
+              <FileText className="w-4 h-4" />
+              <span>Decision Intelligence</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('agent_telemetry')}
+              className={`w-full px-3 py-2.5 rounded flex items-center gap-2.5 transition-all cursor-pointer font-bold ${
+                activeTab === 'agent_telemetry' ? 'bg-[#00f2fe]/15 text-[#00f2fe] border border-[#00f2fe]/40' : 'text-[#8a9aaa] hover:text-[#e8edf2] hover:bg-[#14191e]'
+              }`}
+            >
+              <Activity className="w-4 h-4" />
+              <span>Agent Telemetry</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('counterfactuals')}
+              className={`w-full px-3 py-2.5 rounded flex items-center gap-2.5 transition-all cursor-pointer font-bold ${
+                activeTab === 'counterfactuals' ? 'bg-[#00f2fe]/15 text-[#00f2fe] border border-[#00f2fe]/40' : 'text-[#8a9aaa] hover:text-[#e8edf2] hover:bg-[#14191e]'
+              }`}
+            >
+              <GitBranch className="w-4 h-4" />
+              <span>Counterfactuals</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('dependency_graph')}
+              className={`w-full px-3 py-2.5 rounded flex items-center gap-2.5 transition-all cursor-pointer font-bold ${
+                activeTab === 'dependency_graph' ? 'bg-[#00f2fe]/15 text-[#00f2fe] border border-[#00f2fe]/40' : 'text-[#8a9aaa] hover:text-[#e8edf2] hover:bg-[#14191e]'
+              }`}
+            >
+              <Layers className="w-4 h-4" />
+              <span>Dependency Graph</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('w3c_prov')}
+              className={`w-full px-3 py-2.5 rounded flex items-center gap-2.5 transition-all cursor-pointer font-bold ${
+                activeTab === 'w3c_prov' ? 'bg-[#00f2fe]/15 text-[#00f2fe] border border-[#00f2fe]/40' : 'text-[#8a9aaa] hover:text-[#e8edf2] hover:bg-[#14191e]'
+              }`}
+            >
+              <FileJson className="w-4 h-4" />
+              <span>W3C Provenance</span>
+            </button>
+          </div>
+
+          {/* Quick Trigger Buttons */}
+          <div className="p-3 border-t border-[#222b34] space-y-2">
+            <div className="text-[10px] font-bold text-[#8a9aaa] uppercase tracking-wider">SCENARIO CONTROLS</div>
+
+            <button
+              onClick={handleStartMission}
               disabled={isReplanning}
-              className="px-4 py-2.5 bg-[#30d158] text-[#070a0e] font-bold rounded-lg text-xs hover:bg-[#28c04d] transition-all flex items-center gap-2 disabled:opacity-50 shadow-md cursor-pointer"
+              className="w-full py-2 bg-[#00f2fe] hover:bg-[#38bdf8] text-[#07090b] font-extrabold rounded flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md"
             >
-              <Play className={`w-4 h-4 ${isReplanning ? 'animate-spin' : ''}`} />
-              {isReplanning ? 'AUTONOMOUS LOOP ACTIVE...' : 'START AUTONOMOUS MISSION'}
+              <Play className="w-3.5 h-3.5 fill-current" />
+              <span>{isReplanning ? 'REPLANNING...' : 'START MISSION'}</span>
             </button>
 
             <button
-              onClick={() => handleInject('bridge_fails')}
-              className="px-4 py-2.5 bg-[#0d1418] border border-[rgba(255,255,255,0.12)] hover:border-[#ff453a] text-[#f5f7fa] rounded-lg text-xs flex items-center gap-2 transition-all cursor-pointer hover:bg-[#ff453a]/10"
+              onClick={() => handleInjectEvent('bridge_fails')}
+              className="w-full py-2 bg-[#ef4444]/20 border border-[#ef4444] text-[#f87171] hover:bg-[#ef4444]/30 font-bold rounded flex items-center justify-center gap-1.5 transition-all cursor-pointer text-[11px]"
             >
-              <PlusCircle className="w-4 h-4 text-[#ff453a]" /> INJECT B-07 COLLAPSE (EVENT 1)
-            </button>
-
-            <button
-              onClick={() => handleInject('weather_escalates')}
-              className="px-4 py-2.5 bg-[#0d1418] border border-[rgba(255,255,255,0.12)] hover:border-[#ff9f0a] text-[#f5f7fa] rounded-lg text-xs flex items-center gap-2 transition-all cursor-pointer hover:bg-[#ff9f0a]/10"
-            >
-              <ShieldAlert className="w-4 h-4 text-[#ff9f0a]" /> INJECT SECOND FAILURE (EVENT 2)
-            </button>
-
-            <button
-              onClick={() => handleInject('conflict_occurs')}
-              className="px-4 py-2.5 bg-[#0d1418] border border-[rgba(255,255,255,0.12)] hover:border-[#ffab00] text-[#f5f7fa] rounded-lg text-xs flex items-center gap-2 transition-all cursor-pointer hover:bg-[#ffab00]/10"
-            >
-              <AlertTriangle className="w-4 h-4 text-[#ffab00]" /> SATELLITE CONFLICT
-            </button>
-
-            <button
-              onClick={handleRunCounterfactuals}
-              className="px-4 py-2.5 bg-[#0d1418] border border-[rgba(255,255,255,0.12)] hover:border-[#0a84ff] text-[#f5f7fa] rounded-lg text-xs flex items-center gap-2 transition-all cursor-pointer hover:bg-[#0a84ff]/10"
-            >
-              <GitBranch className="w-4 h-4 text-[#0a84ff]" /> RUN COUNTERFACTUALS
-            </button>
-
-            <button
-              onClick={handleChallengePlan}
-              className="px-4 py-2.5 bg-[#0d1418] border border-[rgba(255,255,255,0.12)] hover:border-[#ff9f0a] text-[#f5f7fa] rounded-lg text-xs flex items-center gap-2 transition-all cursor-pointer hover:bg-[#ff9f0a]/10"
-            >
-              <ShieldAlert className="w-4 h-4 text-[#ff9f0a]" /> CHALLENGE PLAN
-            </button>
-
-            <button
-              onClick={handleReset}
-              className="px-4 py-2.5 bg-[#0d1418] border border-[rgba(255,255,255,0.12)] hover:border-[#a0b2c6] text-[#a0b2c6] hover:text-[#f5f7fa] rounded-lg text-xs flex items-center gap-2 transition-all cursor-pointer"
-            >
-              <RotateCcw className="w-4 h-4" /> RESET MISSION
+              <AlertTriangle className="w-3.5 h-3.5" />
+              <span>INJECT B-07 COLLAPSE</span>
             </button>
           </div>
+        </aside>
 
-          {/* Mission Policy Selector */}
-          <div className="flex items-center gap-2 font-mono text-xs bg-[#0d1418] border border-[rgba(255,255,255,0.12)] px-3 py-1.5 rounded-lg backdrop-blur-md">
-            <span className="text-[#a0b2c6] font-bold uppercase tracking-wider text-[10px]">POLICY MODE:</span>
-            <div className="bg-[#070a0e] p-0.5 rounded-md border border-[rgba(255,255,255,0.1)] flex gap-1">
-              {['SAFE', 'BALANCED', 'URGENT'].map((policyOption) => (
-                <button
-                  key={policyOption}
-                  onClick={() => handlePolicyChange(policyOption)}
-                  className={`px-3 py-1 rounded text-[10px] font-bold uppercase transition-all cursor-pointer ${
-                    state.policy === policyOption
-                      ? 'bg-[#0a84ff] text-[#070a0e] shadow-sm font-extrabold'
-                      : 'text-[#a0b2c6] hover:text-[#f5f7fa] hover:bg-white/5'
-                  }`}
-                >
-                  {policyOption}
-                </button>
-              ))}
+        {/* CENTER WORKSPACE CANVAS */}
+        <main className="flex-1 bg-[#07090b] p-4 flex flex-col overflow-hidden relative">
+          {/* Top Quick Operational Bar */}
+          <div className="grid grid-cols-5 gap-3 mb-3 shrink-0 font-mono text-xs">
+            <div className="p-3 bg-[#0d1117] border border-[#222b34] rounded-lg">
+              <div className="text-[10px] text-[#8a9aaa]">WATER ELEVATION</div>
+              <div className="text-base font-bold text-[#00f2fe] mt-0.5">{state?.current_water_depth_m ?? 0.35}m</div>
+            </div>
+            <div className="p-3 bg-[#0d1117] border border-[#222b34] rounded-lg">
+              <div className="text-[10px] text-[#8a9aaa]">WATER RISE RATE</div>
+              <div className="text-base font-bold text-[#f59e0b] mt-0.5">+{state?.water_rise_rate_m_hr ?? 0.15}m/h</div>
+            </div>
+            <div className="p-3 bg-[#0d1117] border border-[#222b34] rounded-lg">
+              <div className="text-[10px] text-[#8a9aaa]">PREDICTED TTI</div>
+              <div className="text-base font-bold text-[#2ecc71] mt-0.5">{state?.current_packet?.tti_minutes ?? 112}m</div>
+            </div>
+            <div className="p-3 bg-[#0d1117] border border-[#222b34] rounded-lg">
+              <div className="text-[10px] text-[#8a9aaa]">ACTIVE PLAN FRAGILITY</div>
+              <div className="text-base font-bold text-[#2ecc71] mt-0.5">{state?.current_packet?.fragility ?? 'STABLE'}</div>
+            </div>
+            <div className="p-3 bg-[#0d1117] border border-[#222b34] rounded-lg">
+              <div className="text-[10px] text-[#8a9aaa]">STATE VERSION</div>
+              <div className="text-base font-bold text-[#00f2fe] mt-0.5">v{state?.world_state_version ?? 1}</div>
             </div>
           </div>
-        </section>
 
-        {/* Counterfactual Info Banner */}
-        {counterfactualInfo && (
-          <div className="border border-[#3498db]/40 bg-[#3498db]/10 text-[#3498db] p-3 rounded text-xs flex items-center gap-2 font-mono text-left">
-            <Search className="w-4 h-4 flex-shrink-0" />
-            <span>{counterfactualInfo}</span>
-          </div>
-        )}
-
-        {/* Cockpit Grid (Top Row) */}
-        <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-          {/* Left Column: Live Map & Counterfactual Graph (7 cols) */}
-          <div className="lg:col-span-7 flex flex-col">
-            <DependencyGraph state={state} />
-          </div>
-
-          {/* Right Column: Multi-Agent Execution Grid (5 cols) */}
-          <div className="lg:col-span-5 flex flex-col">
-            <AgentTrace steps={stepsToShow} activeStep={activeStep} />
-          </div>
-        </section>
-
-        {/* Decision Boundary Gauge Widget Row */}
-        <section className="w-full">
-          <DecisionBoundaryGauge confidence={currentConfidence} isReversalTriggered={isSentinelAlert} />
-        </section>
-
-        {/* Candidate Futures Visualization Row */}
-        {counterfactualBranches.length > 0 && (
-          <section className="w-full">
-            <CounterfactualFutures branches={counterfactualBranches} />
-          </section>
-        )}
-
-        {/* Lower Grid (Bottom Row) */}
-        <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-          {/* Left Column: Decision Packet & Capacity Telemetry (6 cols) */}
-          <div className="lg:col-span-6 flex flex-col gap-4">
-            <DecisionPacketView packet={state.current_packet} onAuthorize={handleAuthorize} />
-
-            {/* Capacity Telemetry Card */}
-            <div className={`capacity bg-[#14181a] border border-[#242a2e] rounded-lg p-4 font-mono text-left flex items-center justify-between ${state.current_packet?.capacity_gap ? 'border-[#e74c3c] bg-[#e74c3c]/10' : ''}`}>
-              <div>
-                <div className="text-xs uppercase text-[#8a9aaa]">Vehicle Capacity Telemetry</div>
-                <div className="text-sm font-bold text-[#e8edf2] mt-0.5">Available Evacuation Transport Assets</div>
-                <div className="w-48 h-2 bg-[#0a0d0f] rounded-full overflow-hidden border border-[#242a2e] mt-2">
-                  <div className="h-full bg-[#2ecc71] rounded-full" style={{ width: `${Math.min(100, (totalVehicleCapacity / 40) * 100)}%` }}></div>
+          {/* Active Tab View Rendering */}
+          <div className="flex-1 relative overflow-hidden">
+            {activeTab === 'mission_control' && (
+              <div className="w-full h-full grid grid-rows-2 gap-3">
+                <SpatialMapCanvas state={state} activePlanRouteId={state?.current_packet?.route_id} />
+                <div className="grid grid-cols-2 gap-3 min-h-0">
+                  <AgentTrace steps={state?.agent_steps || localSteps} reasoningMode={state?.reasoning_mode || 'LLM_AGENTIC'} />
+                  <DependencyGraph state={state} />
                 </div>
               </div>
-              <div className="text-2xl font-bold text-[#e8edf2]">
-                {totalVehicleCapacity} <span className="text-xs text-[#5a6a7a]">SLOTS</span>
-              </div>
-            </div>
+            )}
+
+            {activeTab === 'spatial_map' && (
+              <SpatialMapCanvas state={state} activePlanRouteId={state?.current_packet?.route_id} />
+            )}
+
+            {activeTab === 'decision_intelligence' && (
+              <DecisionPacketView packet={state?.current_packet || null} onAuthorize={handleAuthorize} />
+            )}
+
+            {activeTab === 'agent_telemetry' && (
+              <AgentTrace steps={state?.agent_steps || localSteps} reasoningMode={state?.reasoning_mode || 'LLM_AGENTIC'} />
+            )}
+
+            {activeTab === 'counterfactuals' && (
+              <CounterfactualFutures packet={state?.current_packet || null} />
+            )}
+
+            {activeTab === 'dependency_graph' && (
+              <DependencyGraph state={state} />
+            )}
+
+            {activeTab === 'w3c_prov' && (
+              <W3CProvView />
+            )}
           </div>
+        </main>
 
-          {/* Right Column: Counterfactual Causal Reasoning Trace (6 cols) */}
-          <div className="lg:col-span-6 flex flex-col">
-            <CausalTrace packet={state.current_packet} replanCount={state.replan_count} />
-          </div>
-        </section>
+        {/* RIGHT CONTEXTUAL INTELLIGENCE DRAWER */}
+        <aside className="w-96 bg-[#0d1117] border-l border-[#222b34] flex flex-col shrink-0 z-20 overflow-hidden">
+          <DecisionPacketView packet={state?.current_packet || null} onAuthorize={handleAuthorize} />
+        </aside>
+      </div>
 
-        {/* Audit Log Footer */}
-        <footer className="border-t border-[#242a2e] pt-4 mt-2 flex flex-wrap items-center justify-between text-[10px] font-mono text-[#5a6a7a]">
-          <div>REALITY//DECISION ENGINE · REPLIT COMMAND CENTER SYSTEM</div>
-          <div>MISSION RE-PLAN CYCLES: {state.replan_count} · DECISION HORIZON: {state.decision_horizon_min}M</div>
-        </footer>
-      </motion.div>
+      {/* Proof-of-Agency Modal */}
+      <VerifyAutonomyPanel isOpen={isVerifyAutonomyOpen} onClose={() => setIsVerifyAutonomyOpen(false)} />
 
-      {/* Interactive Guided Walkthrough Modal */}
-      <GuidedWalkthrough
-        isOpen={isWalkthroughOpen}
-        onClose={() => setIsWalkthroughOpen(false)}
-        role={role}
-        onRoleChange={setRole}
-      />
-
-      {/* Control Info Popover Modal */}
-      <ControlInfoModal
-        controlKey={activeInfoControl}
-        onClose={() => setActiveInfoControl(null)}
-      />
+      {/* Guided Walkthrough Tour */}
+      <GuidedWalkthrough isOpen={isWalkthroughOpen} onClose={() => setIsWalkthroughOpen(false)} />
     </div>
   );
 }

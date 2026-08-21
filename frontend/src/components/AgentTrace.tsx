@@ -10,21 +10,23 @@ import {
   ClipboardCheck,
   ChevronDown,
   ChevronUp,
+  Cpu,
 } from 'lucide-react';
 
 interface AgentTraceProps {
   steps: AgentStep[];
-  activeStep: string | null;
+  activeStep?: string | null;
+  reasoningMode?: string;
 }
 
-const AGENT_ROSTER = [
-  { key: 'Evidence Agent', name: '01. Evidence Ingestion', icon: Database, stage: 'OBSERVE', desc: 'Ingests observations & detects data contradictions' },
-  { key: 'Dependency Agent', name: '02. Cascade Propagation', icon: GitBranch, stage: 'CASCADE', desc: 'Propagates infrastructure failure cascades' },
-  { key: 'Counterfactual Simulation Agent', name: '03. Counterfactual Simulation', icon: Activity, stage: 'SIMULATE', desc: 'Stress-tests parallel candidate branches' },
-  { key: 'Critic Agent', name: '04. Safety Critic', icon: AlertTriangle, stage: 'CRITIQUE', desc: 'Challenges assumptions against safety boundaries' },
-  { key: 'Information Value Agent', name: '05. VOI Ranking', icon: Search, stage: 'VOI', desc: 'Ranks high-value missing evidence priorities' },
-  { key: 'Decision Agent', name: '06. Policy Synthesis', icon: BrainCircuit, stage: 'DECIDE', desc: 'Formulates candidate operational decision' },
-  { key: 'Verification Agent', name: '07. Deterministic Safety', icon: ClipboardCheck, stage: 'VALIDATE', desc: 'Enforces hard route & capacity constraints' },
+const REASONING_ROSTER = [
+  { key: 'inspect_evidence', name: '01. Inspection Step', icon: Database, desc: 'Inspects observations & detects data contradictions' },
+  { key: 'query_dependency_graph', name: '02. Verification Step', icon: GitBranch, desc: 'Propagates infrastructure failure cascades' },
+  { key: 'simulate_counterfactual', name: '03. Simulation Step', icon: Activity, desc: 'Stress-tests parallel candidate branches' },
+  { key: 'calculate_voi', name: '04. VOI Step', icon: Search, desc: 'Ranks high-value missing evidence priorities' },
+  { key: 'validate_plan', name: '05. Verification Step', icon: ClipboardCheck, desc: 'Enforces hard route & capacity constraints' },
+  { key: 'critique_plan', name: '06. Critic Step', icon: AlertTriangle, desc: 'Challenges assumptions against safety boundaries' },
+  { key: 'generate_decision_packet', name: '07. Decision Step', icon: BrainCircuit, desc: 'Formulates candidate operational decision' },
 ];
 
 export const AgentTrace: React.FC<AgentTraceProps> = ({ steps, activeStep }) => {
@@ -33,41 +35,48 @@ export const AgentTrace: React.FC<AgentTraceProps> = ({ steps, activeStep }) => 
   const stepMap = React.useMemo(() => {
     const map: Record<string, AgentStep> = {};
     for (const step of steps) {
-      if (step.agent.includes('Evidence')) map['Evidence Agent'] = step;
-      else if (step.agent.includes('Dependency')) map['Dependency Agent'] = step;
-      else if (step.agent.includes('Simulation') || step.agent.includes('Counterfactual')) map['Counterfactual Simulation Agent'] = step;
-      else if (step.agent.includes('Critic')) map['Critic Agent'] = step;
-      else if (step.agent.includes('Information')) map['Information Value Agent'] = step;
-      else if (step.agent.includes('Decision')) map['Decision Agent'] = step;
-      else if (step.agent.includes('Verification')) map['Verification Agent'] = step;
+      for (const item of REASONING_ROSTER) {
+        if (step.agent.toLowerCase().includes(item.key.toLowerCase()) || step.inputs.includes(item.key)) {
+          map[item.key] = step;
+        }
+      }
     }
     return map;
   }, [steps]);
 
-  const activeCount = Object.keys(stepMap).length;
+  const executedCount = steps.length;
 
   return (
-    <div className="panel flex flex-col h-full font-mono text-left">
-      <div className="panel-header">
+    <div className="panel flex flex-col h-full font-mono text-left bg-[#14181a] border border-[#242a2e] rounded-xl overflow-hidden shadow-lg">
+      <div className="panel-header bg-[#1b252c] border-b border-[#242a2e] px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="panel-title">Multi-Agent Autonomous Execution Grid</span>
-          <span className="panel-tag">{activeCount > 0 ? `${activeCount}/7 Agents Executed` : 'Standby'}</span>
+          <Cpu className="w-4 h-4 text-[#2ecc71]" />
+          <span className="panel-title font-bold text-xs text-[#f5f7fa] tracking-wider uppercase">
+            Tool-Augmented Autonomous Orchestrator
+          </span>
+          <span className="bg-[#0a0d0f] border border-[#242a2e] text-[#2ecc71] px-2 py-0.5 rounded text-[10px] font-bold">
+            {executedCount > 0 ? `${executedCount} Turns Executed` : 'Standby'}
+          </span>
         </div>
         <button
           onClick={() => setShowTechnicalDetails(!showTechnicalDetails)}
-          className="text-[10px] text-[#6fa8dc] hover:text-[#9cc7ed] flex items-center gap-1 cursor-pointer bg-[#0a0d0f] border border-[#242a2e] px-2 py-0.5 rounded"
+          className="text-[10px] text-[#6fa8dc] hover:text-[#9cc7ed] flex items-center gap-1 cursor-pointer bg-[#0a0d0f] border border-[#242a2e] px-2 py-1 rounded"
         >
           {showTechnicalDetails ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-          <span>{showTechnicalDetails ? 'HIDE RAW TELEMETRY' : 'SHOW RAW TELEMETRY'}</span>
+          <span>{showTechnicalDetails ? 'HIDE RAW TELEMETRY' : 'SHOW TELEMETRY'}</span>
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 p-3 flex-1 overflow-y-auto">
-        {AGENT_ROSTER.map((agentItem) => {
+      <div className="p-3 text-[10px] text-[#8a9aaa] bg-[#0d1418] border-b border-[#242a2e] italic">
+        Specialized reasoning steps: Inspection, Verification, Simulation, Decision, Critic, Sentinel.
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 p-3 flex-1 overflow-y-auto">
+        {REASONING_ROSTER.map((agentItem) => {
           const Icon = agentItem.icon;
           const stepData = stepMap[agentItem.key];
           const isCurrentActive = activeStep && agentItem.key.toLowerCase().includes(activeStep.toLowerCase());
-          const isAlert = stepData?.status === 'REJECTED';
+          const isAlert = stepData?.status === 'REJECTED' || stepData?.status === 'FAILED';
 
           const statusText = isCurrentActive
             ? 'EXECUTING...'
@@ -80,13 +89,13 @@ export const AgentTrace: React.FC<AgentTraceProps> = ({ steps, activeStep }) => 
             : isAlert
             ? 'text-[#e45b55] font-bold'
             : stepData
-            ? 'text-[#65c89a] font-bold'
+            ? 'text-[#2ecc71] font-bold'
             : 'text-[#718086]';
 
           return (
             <div
               key={agentItem.key}
-              className={`border rounded p-2.5 flex flex-col justify-between text-xs transition-all ${
+              className={`border rounded-lg p-2.5 flex flex-col justify-between text-xs transition-all ${
                 isAlert
                   ? 'border-[#e45b55]/50 bg-[#e45b55]/10'
                   : isCurrentActive
@@ -118,16 +127,21 @@ export const AgentTrace: React.FC<AgentTraceProps> = ({ steps, activeStep }) => 
                       <div className="mt-2 pt-2 border-t border-[#253139] text-[9px] font-mono space-y-1 text-[#aab5b8] bg-[#07090b] p-1.5 rounded">
                         <div><strong className="text-[#6fa8dc]">INPUT:</strong> {stepData.inputs}</div>
                         <div><strong className="text-[#65c89a]">OUTPUT:</strong> {stepData.outputs}</div>
+                        {stepData.token_usage && (
+                          <div className="text-[#f39c12]"><strong className="text-[#f39c12]">TOKENS:</strong> {stepData.token_usage.total_tokens || 0}</div>
+                        )}
                       </div>
                     )}
                   </div>
                 ) : (
-                  <p className="text-[#5a6a7a] italic text-[10px]">Awaiting trigger...</p>
+                  <p className="text-[#5a6a7a] italic text-[10px]">Awaiting tool call...</p>
                 )}
               </div>
 
               <div className="mt-2 pt-1 border-t border-[#182229] flex items-center justify-between text-[9px] text-[#718086] font-mono">
-                <span className="uppercase">{stepData?.mode || 'LLM_AGENTIC'}</span>
+                <span className={`uppercase font-bold ${stepData?.mode === 'DETERMINISTIC_FALLBACK' ? 'text-[#e74c3c]' : 'text-[#2ecc71]'}`}>
+                  {stepData?.mode || 'LLM_AGENTIC'}
+                </span>
                 <span>{stepData?.latency_ms ? `${stepData.latency_ms}ms` : '0ms'}</span>
               </div>
             </div>

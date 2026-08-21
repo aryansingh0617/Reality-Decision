@@ -1,12 +1,10 @@
-"""Central operational reality state — single source of deterministic truth."""
+"""Central operational reality state — single source of deterministic truth with versioned state management."""
 
 from __future__ import annotations
-
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any
-
+from typing import Any, Dict, List, Optional
 from core.state.entity_status import ConfidenceClass, EntityStatus, ReliabilityClass
 
 
@@ -47,7 +45,7 @@ class Route:
     confidence: ConfidenceClass = ConfidenceClass.MEDIUM
     people_capacity: int = 0
     eta_minutes: int = 0
-    failure_risk: str = "LOW"  # HIGH / MEDIUM / LOW — not fabricated probability
+    failure_risk: str = "LOW"
     depends_on: list[str] = field(default_factory=list)
     operational: bool = True
 
@@ -85,14 +83,16 @@ class Hospital:
 class AuditRecord:
     timestamp: datetime
     event_type: str
-    actor: str  # ORCHESTRATOR, EVIDENCE_AGENT, HUMAN_COMMANDER, etc.
+    actor: str
     detail: str
     metadata: dict = field(default_factory=dict)
 
 
 @dataclass
 class DecisionPacket:
-    mission: str = "Medical evacuation"
+    decision_id: str = ""
+    world_state_version: int = 1
+    mission: str = "Assam Flood Evacuation"
     policy: MissionPolicy = MissionPolicy.BALANCED
     recommendation: str = ""
     route_id: str | None = None
@@ -104,16 +104,24 @@ class DecisionPacket:
     alternative: str = ""
     verification: str = ""
     confidence: ConfidenceClass = ConfidenceClass.MEDIUM
+    tti_minutes: float = 999.0
+    fragility: str = "STABLE"  # STABLE | FRAGILE | PREDICTIVELY_INVALIDATED | DEPENDENCY_COLLAPSED
     decision_horizon_min: int = 5
     authority: str = "Incident Commander"
     capacity_gap: bool = False
     escalation_required: bool = False
+    requires_human_authorization: bool = True
+    reasoning_mode: str = "LLM_AGENTIC"
     timestamp: datetime = field(default_factory=datetime.now)
     ai_computed_at: datetime | None = None
     human_authorized_at: datetime | None = None
-    authorization_status: str = "PENDING"  # PENDING, AUTHORIZED, REJECTED, VERIFY_REQUESTED
+    authorization_status: str = "PENDING"  # PENDING, AUTHORIZED, REJECTED, VERIFY_REQUESTED, STALE_REJECTED
     provenance: list[str] = field(default_factory=list)
     assumptions: list[str] = field(default_factory=list)
+    evidence_list: list[dict] = field(default_factory=list)
+    risks: list[dict] = field(default_factory=list)
+    alternatives_considered: list[dict] = field(default_factory=list)
+    voi_rankings: list[dict] = field(default_factory=list)
     simulation_summary: dict = field(default_factory=dict)
     previous_plan: str = ""
     cause_of_change: str = ""
@@ -124,15 +132,19 @@ class DecisionPacket:
 
 @dataclass
 class RealityState:
-    """Central state object — deterministic source of operational truth."""
+    """Central state object — deterministic source of operational truth with version control."""
 
-    mission: str = "Medical evacuation"
+    world_state_version: int = 1
+    life_cycle_state: str = "MISSION_CREATED"  # MISSION_CREATED, ASSESSING, DECISION_READY, AWAITING_AUTHORIZATION, AUTHORIZED, MONITORING, PLAN_AT_RISK, REVALIDATING, REPLAN, ESCALATION_REQUIRED
+    mission: str = "Assam Flood Evacuation"
     policy: MissionPolicy = MissionPolicy.BALANCED
     decision_horizon_min: int = 5
     decision_window_min: int = 4
     verification_latency_min: float = 3.0
     weather: Weather = Weather.CLEAR
     gps_available: bool = True
+    current_water_depth: float = 0.35  # meters
+    water_rise_rate: float = 0.15  # meters / hr
 
     entities: dict[str, EntityFact] = field(default_factory=dict)
     routes: dict[str, Route] = field(default_factory=dict)
@@ -153,12 +165,22 @@ class RealityState:
     pending_events: list[dict] = field(default_factory=list)
     last_state_change: str = ""
     multi_event_transition: str | None = None
+    reasoning_mode: str = "LLM_AGENTIC"
+    llm_mode_active: bool = True
+    escalation_required: bool = False
+    escalation_payload: dict = field(default_factory=dict)
 
     mission_start: datetime = field(default_factory=datetime.now)
-    sim_time_offset_min: float = 0.0  # for deterministic demo replay
+    sim_time_offset_min: float = 0.0
 
     def now(self) -> datetime:
         return self.mission_start + timedelta(minutes=self.sim_time_offset_min)
+
+    def mutate_world_state(self, change_description: str) -> None:
+        """Atomically increments state version and records audit transition."""
+        self.world_state_version += 1
+        self.last_state_change = change_description
+        self.log_audit("WORLD_STATE_MUTATED", "SYSTEM", f"v{self.world_state_version}: {change_description}")
 
     def log_activity(self, actor: str, message: str) -> None:
         ts = self.now().strftime("%H:%M:%S")
@@ -195,7 +217,6 @@ class RealityState:
         return EntityStatus.KNOWN
 
     def available_vehicle_capacity(self) -> tuple[int, int, int]:
-        """Returns (confirmed, unknown, total_demand_slots)."""
         confirmed = sum(v.capacity for v in self.vehicles.values() if v.available and v.status != EntityStatus.UNAVAILABLE)
         unknown = sum(v.capacity for v in self.vehicles.values() if v.status in (EntityStatus.UNKNOWN, EntityStatus.UNCERTAIN))
         return confirmed, unknown, confirmed + unknown
@@ -206,3 +227,46 @@ class RealityState:
             max(0, h.current_load) for h in self.hospitals.values()
         )
         return confirmed == 0 and demand > 0
+
+    def get_selective_context(self, target_entity: str | None = None, max_hops: int = 2) -> dict[str, Any]:
+        """
+        Selective context injection: returns entities within N-hops + compact global summary + state version.
+        """
+        summary = {
+            "world_state_version": self.world_state_version,
+            "life_cycle_state": self.life_cycle_state,
+            "mission": self.mission,
+            "policy": self.policy.value,
+            "weather": self.weather.value,
+            "current_water_depth_m": self.current_water_depth,
+            "water_rise_rate_m_hr": self.water_rise_rate,
+            "gps_available": self.gps_available,
+            "available_vehicle_capacity": sum(v.capacity for v in self.vehicles.values() if v.available),
+            "last_state_change": self.last_state_change or "Baseline operational state",
+        }
+
+        detailed_routes = {}
+        for r_id, r in self.routes.items():
+            if not target_entity or target_entity in r.depends_on or target_entity == r_id or r.status != EntityStatus.KNOWN:
+                detailed_routes[r_id] = {
+                    "name": r.name,
+                    "status": r.status.value,
+                    "operational": r.operational,
+                    "capacity": r.people_capacity,
+                    "depends_on": r.depends_on,
+                    "eta_minutes": r.eta_minutes,
+                }
+            else:
+                detailed_routes[r_id] = {"name": r.name, "status": r.status.value, "operational": r.operational}
+
+        detailed_vehicles = {
+            v_id: {"name": v.name, "capacity": v.capacity, "available": v.available, "status": v.status.value}
+            for v_id, v in self.vehicles.items()
+        }
+
+        return {
+            "summary": summary,
+            "detailed_routes": detailed_routes,
+            "vehicles": detailed_vehicles,
+            "disruptions": [f"{k}: {self.get_entity_status(k).value}" for k in ["bridge_b07", "gps_network"] if self.get_entity_status(k) != EntityStatus.KNOWN],
+        }

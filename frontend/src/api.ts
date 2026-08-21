@@ -51,6 +51,8 @@ export interface Hospital {
 }
 
 export interface DecisionPacket {
+  decision_id?: string;
+  world_state_version?: number;
   mission: string;
   policy: string;
   recommendation: string;
@@ -63,14 +65,22 @@ export interface DecisionPacket {
   alternative: string;
   verification: string;
   confidence: string;
+  tti_minutes?: number;
+  fragility?: string;
+  voi_rankings?: any[];
   capacity_gap: boolean;
   escalation_required: boolean;
+  requires_human_authorization: boolean;
+  reasoning_mode: string;
   timestamp: string | null;
   ai_computed_at: string | null;
   human_authorized_at: string | null;
   authorization_status: string;
   provenance: string[];
   assumptions: string[];
+  evidence_list?: any[];
+  risks?: any[];
+  alternatives_considered?: any[];
   decision_horizon_min: number;
   previous_plan?: string;
   cause_of_change?: string;
@@ -92,9 +102,17 @@ export interface AgentStep {
   reasoning: string;
   latency_ms: number;
   mode: string;
+  source?: string;
+  execution_id?: string;
+  turn_index?: number;
+  token_usage?: { prompt_tokens?: number; candidates_tokens?: number; total_tokens?: number };
 }
 
 export interface RealityState {
+  world_state_version?: number;
+  life_cycle_state?: string;
+  current_water_depth_m?: number;
+  water_rise_rate_m_hr?: number;
   mission: string;
   policy: string;
   decision_horizon_min: number;
@@ -117,12 +135,77 @@ export interface RealityState {
   last_state_change: string;
   sentinel_status?: string;
   reasoning_mode?: string;
-  llm_mode_active: boolean;
+  llm_mode_active?: boolean;
 }
 
-export async function fetchHealthStatus(): Promise<{ status: string; llm_available: boolean; reasoning_mode: string }> {
+export interface HarnessToolCall {
+  turn_index: number;
+  tool: string;
+  arguments: Record<string, any>;
+  status: string;
+  latency_ms: number;
+  token_usage?: Record<string, number>;
+}
+
+export interface HarnessScenarioResult {
+  scenario_id: string;
+  disruptions: string[];
+  sequence_length: number;
+  tool_sequence: string[];
+  tool_calls: HarnessToolCall[];
+  final_recommendation: string;
+  route_id: string | null;
+  escalation_required: boolean;
+  reasoning_mode: string;
+}
+
+export interface HarnessSuiteResult {
+  verdict: string;
+  label: string;
+  control_runs_identical: boolean;
+  scenario_ab_divergent: boolean;
+  scenarios: {
+    scenario_a: HarnessScenarioResult;
+    scenario_b: HarnessScenarioResult;
+    scenario_c_control: HarnessScenarioResult[];
+  };
+  summary_comparison: Array<{
+    id: string;
+    input: string;
+    length: number;
+    tools: string;
+    decision: string;
+  }>;
+}
+
+export async function fetchHealthStatus(): Promise<{
+  status: string;
+  llm_available: boolean;
+  llm_mode_active: boolean;
+  reasoning_mode: string;
+  provider: string;
+  model: string;
+  failure_reason: string | null;
+  simulated_fallback_forced?: boolean;
+}> {
   const res = await fetch(`${API_BASE}/health`);
   if (!res.ok) throw new Error('Health check failed');
+  return res.json();
+}
+
+export async function toggleSimulatedFallback(force_fallback?: boolean): Promise<any> {
+  const res = await fetch(`${API_BASE}/llm/toggle-fallback`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ force_fallback }),
+  });
+  if (!res.ok) throw new Error('Failed to toggle simulated fallback');
+  return res.json();
+}
+
+export async function fetchVerifyAutonomyHarness(): Promise<HarnessSuiteResult> {
+  const res = await fetch(`${API_BASE}/harness/run`);
+  if (!res.ok) throw new Error('Failed to execute proof-of-agency verification harness');
   return res.json();
 }
 
@@ -166,11 +249,11 @@ export async function changePolicy(policy: string): Promise<RealityState> {
   return data.state;
 }
 
-export async function authorizeDecision(action: string): Promise<RealityState> {
+export async function authorizeDecision(action: string, target_version?: number): Promise<RealityState> {
   const res = await fetch(`${API_BASE}/authorize`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action }),
+    body: JSON.stringify({ action, target_version }),
   });
   if (!res.ok) throw new Error('Failed to authorize decision');
   const data = await res.json();
@@ -221,7 +304,24 @@ export function streamAutonomousMission(
 ): () => void {
   const es = new EventSource(`${API_BASE}/mission/autonomous/stream`);
 
-  const events = ['evidence', 'dependency', 'verification', 'simulation', 'decision', 'critic', 'synthetic_execution'];
+  const events = [
+    'inspect_reality_state',
+    'inspect_evidence',
+    'query_dependency_graph',
+    'calculate_voi',
+    'simulate_counterfactual',
+    'validate_plan',
+    'critique_plan',
+    'escalate',
+    'generate_decision_packet',
+    'synthetic_execution',
+    'evidence',
+    'dependency',
+    'verification',
+    'simulation',
+    'decision',
+    'critic',
+  ];
   
   events.forEach((eventName) => {
     es.addEventListener(eventName, (event: MessageEvent) => {
@@ -252,5 +352,29 @@ export async function fetchCounterfactuals(): Promise<any> {
 export async function challengePlan(): Promise<any> {
   const res = await fetch(`${API_BASE}/challenge`, { method: 'POST' });
   if (!res.ok) throw new Error('Failed to challenge plan');
+  return res.json();
+}
+
+export async function fetchW3CProvGraph(): Promise<any> {
+  const res = await fetch(`${API_BASE}/provenance/w3c-prov`);
+  if (!res.ok) throw new Error('Failed to fetch W3C PROV graph');
+  return res.json();
+}
+
+export async function fetchGaugeData(siteId: string = "01646500"): Promise<any> {
+  const res = await fetch(`${API_BASE}/gauge/fetch?site_id=${siteId}`);
+  if (!res.ok) throw new Error('Failed to fetch gauge data');
+  return res.json();
+}
+
+export async function fetchDroneWaypoints(entityId: string = "bridge_b07"): Promise<any> {
+  const res = await fetch(`${API_BASE}/drone/waypoints?entity_id=${entityId}`);
+  if (!res.ok) throw new Error('Failed to fetch drone waypoints');
+  return res.json();
+}
+
+export async function fetchOSMGEOJSON(): Promise<any> {
+  const res = await fetch(`${API_BASE}/osm/ingest`);
+  if (!res.ok) throw new Error('Failed to fetch OSM GeoJSON');
   return res.json();
 }

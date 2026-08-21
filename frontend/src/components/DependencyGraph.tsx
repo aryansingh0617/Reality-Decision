@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import ReactFlow, {
   type Node,
   type Edge,
@@ -76,11 +76,12 @@ const NODE_TYPES = {
   custom: TacticalDiamondNode,
 };
 
-interface DependencyGraphProps {
-  state: RealityState;
-}
-
-export const DependencyGraph: React.FC<DependencyGraphProps> = ({ state }) => {
+export const DependencyGraph = ({
+  state,
+}: {
+  state: RealityState | null;
+  activeStep?: string | null;
+}) => {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedNodeData, setSelectedNodeData] = useState<any | null>(null);
@@ -88,6 +89,7 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ state }) => {
 
   // Helper to determine entity status
   const getStatus = useCallback((entityId: string) => {
+    if (!state) return 'UNKNOWN';
     if (entityId === 'bridge_b07') {
       const st = state.routes.route_r12?.status || 'KNOWN';
       if (state.conflicts.some((c) => c.entity === 'bridge_b07')) {
@@ -102,13 +104,14 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ state }) => {
     return 'KNOWN';
   }, [state]);
 
-  const activeRec = state.current_packet?.route_id || 'route_r12';
-  const b07Status = getStatus('bridge_b07');
-  const r12Status = getStatus('route_r12');
-  const r14Status = getStatus('route_r14');
-
   // Build Nodes & Edges on state change
   useEffect(() => {
+    if (!state) return;
+    const activeRec = state.current_packet?.route_id || 'route_r12';
+    const b07Status = getStatus('bridge_b07');
+    const r12Status = getStatus('route_r12');
+    const r14Status = getStatus('route_r14');
+
     const baseNodes: Node[] = [
       {
         id: 'north_relay',
@@ -339,7 +342,7 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ state }) => {
 
     setNodes([...baseNodes, ...branchNodes]);
     setEdges(baseEdges);
-  }, [state, getStatus, activeRec, b07Status, r12Status, r14Status, setNodes, setEdges]);
+  }, [state, getStatus, setNodes, setEdges]);
 
   // Fit View handler
   const handleFitView = useCallback(() => {

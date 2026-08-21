@@ -1,0 +1,18 @@
+{
+  "short_name": "REALITY//DECISION",
+  "name": "REALITY//DECISION 2.0 — Disaster Intelligence PWA",
+  "description": "Offline-First Mobile Commander Interface for Disaster Logistics & Autonomous Decision Authorization",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0a0d0f",
+  "theme_color": "#2ecc71",
+  "display": "standalone",
+  "orientation": "any"
+}

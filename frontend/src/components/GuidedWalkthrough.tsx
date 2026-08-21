@@ -17,8 +17,8 @@ import {
 interface GuidedWalkthroughProps {
   isOpen: boolean;
   onClose: () => void;
-  role: 'GUEST' | 'OPERATOR' | 'COMMAND' | 'ADMIN';
-  onRoleChange: (r: 'GUEST' | 'OPERATOR' | 'COMMAND' | 'ADMIN') => void;
+  role?: 'GUEST' | 'OPERATOR' | 'COMMAND' | 'ADMIN';
+  onRoleChange?: (r: 'GUEST' | 'OPERATOR' | 'COMMAND' | 'ADMIN') => void;
 }
 
 export interface WalkthroughStep {
@@ -431,7 +431,7 @@ export const GuidedWalkthrough: React.FC<GuidedWalkthroughProps> = ({
             {(['GUEST', 'OPERATOR', 'ADMIN'] as const).map((r) => (
               <button
                 key={r}
-                onClick={() => onRoleChange(r === 'OPERATOR' ? 'OPERATOR' : r)}
+                onClick={() => onRoleChange?.(r === 'OPERATOR' ? 'OPERATOR' : r)}
                 className={`px-2.5 py-1 text-[10px] font-bold rounded cursor-pointer transition-colors ${
                   (role === 'OPERATOR' && r === 'OPERATOR') || role === r
                     ? 'bg-[#6fa8dc] text-[#07090b]'
