@@ -55,7 +55,8 @@ export const WorkflowStepper: React.FC<WorkflowStepperProps> = ({ currentIndex, 
         </div>
       </div>
 
-      <div className="flex items-stretch">
+      <div className="-mx-1 overflow-x-auto px-1 pb-1">
+        <div className="flex items-stretch min-w-[760px]">
         {STAGES.map((s, i) => {
           const Icon = s.icon;
           const done = i < currentIndex;
@@ -103,6 +104,7 @@ export const WorkflowStepper: React.FC<WorkflowStepperProps> = ({ currentIndex, 
             </React.Fragment>
           );
         })}
+        </div>
       </div>
     </div>
   );

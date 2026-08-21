@@ -28,10 +28,15 @@ Transform the existing REALITY//DECISION app into a premium, $100M-startup-quali
 
 ## Known / Deferred
 - Live Gemini mode available but user chose to keep DETERMINISTIC_FALLBACK (honest demo). Add `GEMINI_API_KEY` to `/app/.env` to enable.
-- `DependencyGraph` (reactflow) and `W3CProvView` kept in original technical style (legitimately technical views under Analysis) to save credits.
 - No auth in this product (no test credentials needed).
 
-## Prioritized Backlog (P0 done)
-- P1: Restyle Dependency graph + W3C Provenance to match design tokens.
-- P2: Tablet/≤1024px reflow polish for Command Center two-column grid.
+## Iteration 2 (2026-06) — all 4 next-action items delivered
+- **Analysis polish**: `DependencyGraph.tsx` and `W3CProvView.tsx` fully restyled to the design system (token colors, Geist, clean chrome, metric cards). Every tab now matches.
+- **Tablet layout**: `WorkflowStepper` is horizontally scrollable on narrow screens; Command Center decision panel uses responsive height (`h-[680px] lg:h-[816px]`). Verified at 1024px.
+- **Replan cinematics**: `SpatialMapCanvas` uses framer-motion `pathLength` to draw the recommended route in and flashes/breaks the blocked route on B-07 failure.
+- **Guided story mode**: one-tap "Play 60-second guided demo" in Command Center runs Reality→Investigate→B-07 failure→Replan→Authorize→Monitor hands-free, with a step caption banner, progress dots, and a Stop control (cancel-safe via ref). `data-testid`: auto-demo-button, stop-demo-button.
+- Verified end-to-end via screenshots, zero console errors.
+
+## Prioritized Backlog
+- P2: Further ≤768px phone reflow if needed.
 - P3: Optional live-mode enablement + token telemetry surfacing.

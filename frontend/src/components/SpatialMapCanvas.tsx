@@ -95,18 +95,49 @@ export const SpatialMapCanvas: React.FC<Props> = ({ state, activePlanRouteId = '
           {layers.routes && (
             <svg className="pointer-events-none absolute inset-0 h-full w-full">
               {/* R-14 alt/detour */}
-              <path d="M 150 410 Q 300 470 470 440 T 740 150" fill="none" stroke={r14Color} strokeWidth={r14Rec ? 4.5 : 2.5} strokeLinecap="round" opacity={r14Rec ? 1 : 0.75} />
+              {r14Rec ? (
+                <motion.path
+                  key={`r14-rec-${r14Op}`}
+                  d="M 150 410 Q 300 470 470 440 T 740 150"
+                  fill="none"
+                  stroke={r14Color}
+                  strokeWidth={4.5}
+                  strokeLinecap="round"
+                  initial={{ pathLength: 0, opacity: 0 }}
+                  animate={{ pathLength: 1, opacity: 1 }}
+                  transition={{ duration: 1.1, ease: 'easeInOut' }}
+                />
+              ) : (
+                <path d="M 150 410 Q 300 470 470 440 T 740 150" fill="none" stroke={r14Color} strokeWidth={2.5} strokeLinecap="round" opacity={0.7} />
+              )}
               {/* R-12 fast corridor */}
-              <path
-                d="M 150 410 L 450 260 L 740 150"
-                fill="none"
-                stroke={r12Color}
-                strokeWidth={r12Rec ? 4.5 : 2.5}
-                strokeLinecap="round"
-                strokeDasharray={b07Status === 'OPERATIONAL' ? (r12Rec ? '10 8' : 'none') : '6 6'}
-                opacity={r12Rec ? 1 : 0.75}
-                style={r12Rec && b07Status === 'OPERATIONAL' ? { animation: 'rd-dash 1s linear infinite' } : undefined}
-              />
+              {b07Status !== 'OPERATIONAL' ? (
+                <motion.path
+                  key={`r12-broken-${b07Status}`}
+                  d="M 150 410 L 450 260 L 740 150"
+                  fill="none"
+                  stroke={C.blocked}
+                  strokeWidth={2.5}
+                  strokeLinecap="round"
+                  strokeDasharray="6 7"
+                  animate={{ opacity: [1, 0.25, 1, 0.25, 0.55] }}
+                  transition={{ duration: 1.5, times: [0, 0.25, 0.5, 0.75, 1] }}
+                />
+              ) : r12Rec ? (
+                <motion.path
+                  key={`r12-rec-${activePlanRouteId}`}
+                  d="M 150 410 L 450 260 L 740 150"
+                  fill="none"
+                  stroke={r12Color}
+                  strokeWidth={4.5}
+                  strokeLinecap="round"
+                  initial={{ pathLength: 0, opacity: 0 }}
+                  animate={{ pathLength: 1, opacity: 1 }}
+                  transition={{ duration: 1.1, ease: 'easeInOut' }}
+                />
+              ) : (
+                <path d="M 150 410 L 450 260 L 740 150" fill="none" stroke={r12Color} strokeWidth={2.5} strokeLinecap="round" opacity={0.7} />
+              )}
               <text x="300" y="335" fill={r12Color} fontSize="10.5" fontFamily="Geist, sans-serif" fontWeight="600">R-12 · Fast corridor</text>
               <text x="360" y="462" fill={r14Color} fontSize="10.5" fontFamily="Geist, sans-serif" fontWeight="600">R-14 · Safe bypass</text>
             </svg>

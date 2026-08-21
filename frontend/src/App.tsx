@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   fetchState,
   injectEvent,
@@ -36,6 +36,8 @@ import {
   GitFork,
   FileJson,
   RefreshCw,
+  PlayCircle,
+  Square,
 } from 'lucide-react';
 
 type Section = 'command' | 'decision' | 'activity' | 'map' | 'analysis';
@@ -68,6 +70,8 @@ export function App() {
   const [walkthroughOpen, setWalkthroughOpen] = useState(false);
   const [verifyOpen, setVerifyOpen] = useState(false);
   const [fallbackForced, setFallbackForced] = useState(false);
+  const [demo, setDemo] = useState<{ active: boolean; caption: string; step: number }>({ active: false, caption: '', step: 0 });
+  const demoRef = useRef(false);
 
   const getIST = () =>
     new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date());
@@ -131,6 +135,49 @@ export function App() {
       await loadAll();
     } catch (err: any) {
       setError(err.message || 'Failed to toggle mode');
+    }
+  };
+
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  const stopDemo = () => {
+    demoRef.current = false;
+    setDemo({ active: false, caption: '', step: 0 });
+  };
+  const runAutoDemo = async () => {
+    if (demoRef.current) return;
+    demoRef.current = true;
+    setSection('command');
+    setError(null);
+    const say = (caption: string, step: number) => setDemo({ active: true, caption, step });
+    const alive = async (ms: number) => {
+      await sleep(ms);
+      return demoRef.current;
+    };
+    try {
+      say('Reality is stable — the system already holds a current recommendation.', 1);
+      if (!(await alive(3200))) return;
+      say('Running a decision cycle — reading reality and weighing every route…', 2);
+      runCycle();
+      if (!(await alive(7000))) return;
+      say('Reality changes: Bridge B-07 fails and the fast corridor is lost.', 3);
+      try {
+        setState(await injectEvent('bridge_fails'));
+      } catch {}
+      runCycle();
+      if (!(await alive(7500))) return;
+      say('The system replanned — it now recommends Route R-14, the safe bypass.', 4);
+      if (!(await alive(3500))) return;
+      say('A human reviews the evidence and authorizes the new plan.', 5);
+      try {
+        const s = await fetchState();
+        setState(await authorizeDecision('AUTHORIZE', s.world_state_version));
+      } catch {}
+      if (!(await alive(2800))) return;
+      say('Sentinel keeps monitoring reality — it will replan the moment things change.', 6);
+      if (!(await alive(4000))) return;
+    } finally {
+      demoRef.current = false;
+      setDemo({ active: false, caption: '', step: 0 });
     }
   };
 
@@ -226,6 +273,24 @@ export function App() {
       <main className="flex-1 overflow-y-auto">
         {section === 'command' && (
           <div className="mx-auto max-w-[1600px] space-y-4 p-5 rd-anim-fade">
+            {/* Guided demo caption */}
+            {demo.active && (
+              <div className="rd-panel flex items-center gap-4 px-5 py-3.5 rd-anim-up" style={{ borderColor: 'rgba(91,141,239,0.45)', background: 'linear-gradient(180deg, var(--rd-accent-soft), var(--rd-surface))' }}>
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg" style={{ background: 'var(--rd-accent-soft)', color: 'var(--rd-accent)' }}>
+                  <PlayCircle className="h-5 w-5 rd-pulse" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="t-label" style={{ color: 'var(--rd-accent-2)' }}>Guided demo · step {demo.step} of 6</div>
+                  <div className="t-h3 mt-1" style={{ color: 'var(--rd-text)' }}>{demo.caption}</div>
+                </div>
+                <div className="hidden items-center gap-1.5 sm:flex">
+                  {[1, 2, 3, 4, 5, 6].map((n) => (
+                    <span key={n} className="h-1.5 rounded-full transition-all" style={{ width: n === demo.step ? 20 : 8, background: n <= demo.step ? 'var(--rd-accent)' : 'var(--rd-border-2)' }} />
+                  ))}
+                </div>
+                <button onClick={stopDemo} data-testid="stop-demo-button" className="rd-btn rd-btn-ghost shrink-0"><Square className="h-3.5 w-3.5" /> Stop</button>
+              </div>
+            )}
             {/* Situation + scenario controls */}
             <div className="flex flex-col gap-4 xl:flex-row xl:items-stretch">
               <div className="rd-panel flex flex-1 flex-col justify-between p-5">
@@ -237,12 +302,15 @@ export function App() {
                   </div>
                 </div>
                 <div className="mt-5 flex flex-wrap gap-2.5">
-                  <button onClick={runCycle} disabled={working} data-testid="run-cycle-button" className="rd-btn rd-btn-primary">
+                  <button onClick={runCycle} disabled={working || demo.active} data-testid="run-cycle-button" className="rd-btn rd-btn-primary">
                     {working ? <RefreshCw className="h-4 w-4 rd-spin-slow" /> : <Play className="h-4 w-4" />}
                     {working ? 'Running decision cycle…' : 'Run decision cycle'}
                   </button>
-                  <button onClick={() => injectDisruption('bridge_fails')} disabled={working} data-testid="inject-bridge-button" className="rd-btn rd-btn-ghost" style={{ color: 'var(--rd-danger)', borderColor: 'rgba(229,100,94,0.4)' }}>
+                  <button onClick={() => injectDisruption('bridge_fails')} disabled={working || demo.active} data-testid="inject-bridge-button" className="rd-btn rd-btn-ghost" style={{ color: 'var(--rd-danger)', borderColor: 'rgba(229,100,94,0.4)' }}>
                     <AlertTriangle className="h-4 w-4" /> Simulate: Bridge B-07 fails
+                  </button>
+                  <button onClick={demo.active ? stopDemo : runAutoDemo} data-testid="auto-demo-button" className="rd-btn rd-btn-ghost" style={{ color: 'var(--rd-accent-2)', borderColor: 'rgba(91,141,239,0.4)' }}>
+                    {demo.active ? <><Square className="h-3.5 w-3.5" /> Stop demo</> : <><PlayCircle className="h-4 w-4" /> Play 60-second guided demo</>}
                   </button>
                 </div>
               </div>
@@ -264,7 +332,7 @@ export function App() {
                 <div className="h-[440px]"><SpatialMapCanvas state={state} activePlanRouteId={packet?.route_id} /></div>
                 <div className="rd-panel h-[360px] overflow-hidden"><AgentTrace steps={steps} working={working} /></div>
               </div>
-              <div className="rd-panel overflow-hidden lg:h-[816px]">
+              <div className="rd-panel h-[680px] overflow-hidden lg:h-[816px]">
                 <DecisionPacketView packet={packet} onAuthorize={handleAuthorize} routes={state?.routes} />
               </div>
             </div>

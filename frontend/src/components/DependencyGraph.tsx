@@ -12,461 +12,201 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import type { RealityState } from '../api';
-import { Crosshair, X, Maximize2 } from 'lucide-react';
+import { GitBranch, X, Maximize2 } from 'lucide-react';
 
-// Replit / Military Tactical Diamond Node Component (Matching Reference UI)
-const TacticalDiamondNode = ({ data }: { data: any }) => {
+const C = {
+  blue: '#5b8def',
+  green: '#3fb984',
+  amber: '#e0a83d',
+  red: '#e5645e',
+  muted: '#647180',
+};
+
+const DiamondNode = ({ data }: { data: any }) => {
   const isGhost = data.isGhost;
   const isRecommended = data.isRecommended;
 
-  const stateColors: Record<string, { border: string; bg: string; text: string; dot: string; glow: string }> = {
-    KNOWN: { border: 'border-[#6fa8dc]', bg: 'bg-[#0d1418]', text: 'text-[#6fa8dc]', dot: 'bg-[#6fa8dc]', glow: 'shadow-[#6fa8dc]/30' },
-    CONFIRMED: { border: 'border-[#65c89a]', bg: 'bg-[#0d1418]', text: 'text-[#65c89a]', dot: 'bg-[#65c89a]', glow: 'shadow-[#65c89a]/30' },
-    UNCERTAIN: { border: 'border-[#e7a23b]', bg: 'bg-[#0d1418]', text: 'text-[#e7a23b]', dot: 'bg-[#e7a23b]', glow: 'shadow-[#e7a23b]/30' },
-    CONFLICTING: { border: 'border-[#e45b55]', bg: 'bg-[#0d1418]', text: 'text-[#e45b55]', dot: 'bg-[#e45b55]', glow: 'shadow-[#e45b55]/30' },
-    UNAVAILABLE: { border: 'border-[#e45b55]', bg: 'bg-[#0d1418]', text: 'text-[#e45b55]', dot: 'bg-[#e45b55]', glow: 'shadow-[#e45b55]/30' },
-    FAILED: { border: 'border-[#e45b55]', bg: 'bg-[#0d1418]', text: 'text-[#e45b55]', dot: 'bg-[#e45b55]', glow: 'shadow-[#e45b55]/30' },
-    UNKNOWN: { border: 'border-[#718086]', bg: 'bg-[#0d1418]', text: 'text-[#718086]', dot: 'bg-[#718086]', glow: 'shadow-none' },
+  const map: Record<string, string> = {
+    KNOWN: C.blue,
+    CONFIRMED: C.green,
+    UNCERTAIN: C.amber,
+    CONFLICTING: C.red,
+    UNAVAILABLE: C.red,
+    FAILED: C.red,
+    UNKNOWN: C.muted,
   };
-
-  const style = stateColors[data.status] || stateColors.UNKNOWN;
+  const failed = data.status === 'UNAVAILABLE' || data.status === 'FAILED';
+  const color = isGhost ? C.muted : isRecommended ? C.green : map[data.status] || C.muted;
   const statusLabel = isGhost
-    ? 'COUNTERFACTUAL'
+    ? 'Counterfactual'
     : data.status === 'KNOWN' || data.status === 'CONFIRMED'
-    ? 'NOMINAL'
+    ? 'Nominal'
     : data.status === 'UNAVAILABLE'
-    ? 'FAILED'
-    : data.status;
+    ? 'Failed'
+    : data.status.charAt(0) + data.status.slice(1).toLowerCase();
 
   return (
-    <div className="flex flex-col items-center justify-center font-mono cursor-pointer group select-none">
-      <Handle type="target" position={Position.Left} className="w-1.5 h-1.5 bg-[#718086] border-none opacity-0" />
-      
-      {/* Outer Diamond Marker matching reference image */}
+    <div className="group flex select-none flex-col items-center justify-center">
+      <Handle type="target" position={Position.Left} className="border-none opacity-0" style={{ width: 6, height: 6 }} />
       <div
-        className={`w-7 h-7 border flex items-center justify-center transition-all duration-300 shadow-md ${
-          data.status === 'UNAVAILABLE' || data.status === 'FAILED'
-            ? 'neon-node-failed bg-[#10171c] border-[#ff453a] scale-110'
-            : isGhost
-            ? 'rotate-45 border-[#718086] border-dashed bg-transparent'
-            : isRecommended
-            ? 'rotate-45 border-[#34c759] bg-[#0e151b] ring-2 ring-[#34c759]/60 shadow-[0_0_20px_rgba(52,199,89,0.5)] scale-110'
-            : `rotate-45 ${style.border} ${style.bg} ${style.glow}`
-        } group-hover:scale-115`}
+        className="flex items-center justify-center transition-all duration-300 group-hover:scale-110"
+        style={{
+          width: 30,
+          height: 30,
+          transform: 'rotate(45deg)',
+          borderRadius: 7,
+          background: 'var(--rd-panel)',
+          border: `1.5px solid ${color}`,
+          borderStyle: isGhost ? 'dashed' : 'solid',
+          boxShadow: isRecommended
+            ? `0 0 0 4px ${color}22`
+            : failed
+            ? `0 0 14px ${color}66`
+            : 'none',
+        }}
       >
-        <div className={`w-2.5 h-2.5 rotate-45 ${isGhost ? 'bg-[#718086]' : isRecommended ? 'bg-[#34c759]' : style.dot}`}></div>
+        <span style={{ width: 9, height: 9, borderRadius: 3, transform: 'rotate(45deg)', background: color }} />
       </div>
-
-      {/* Label & Status underneath node */}
-      <div className="mt-2 text-center whitespace-nowrap">
-        <div className="text-[11px] font-extrabold tracking-wider text-[#f1f3f0] uppercase">
-          {data.label}
-        </div>
-        <div className={`text-[9px] font-mono font-bold tracking-widest uppercase mt-0.5 ${style.text}`}>
-          {statusLabel}
-        </div>
+      <div className="mt-2.5 whitespace-nowrap text-center">
+        <div className="text-[11px] font-semibold" style={{ color: 'var(--rd-text)' }}>{data.label}</div>
+        <div className="mt-0.5 text-[9.5px] font-medium uppercase tracking-wider" style={{ color }}>{statusLabel}</div>
       </div>
-
-      <Handle type="source" position={Position.Right} className="w-1.5 h-1.5 bg-[#718086] border-none opacity-0" />
+      <Handle type="source" position={Position.Right} className="border-none opacity-0" style={{ width: 6, height: 6 }} />
     </div>
   );
 };
 
-const NODE_TYPES = {
-  custom: TacticalDiamondNode,
-};
+const NODE_TYPES = { custom: DiamondNode };
 
-export const DependencyGraph = ({
-  state,
-}: {
-  state: RealityState | null;
-  activeStep?: string | null;
-}) => {
+export const DependencyGraph = ({ state }: { state: RealityState | null; activeStep?: string | null }) => {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-  const [selectedNodeData, setSelectedNodeData] = useState<any | null>(null);
-  const [rfInstance, setRfInstance] = useState<any | null>(null);
+  const [selected, setSelected] = useState<any | null>(null);
+  const [rf, setRf] = useState<any | null>(null);
 
-  // Helper to determine entity status
-  const getStatus = useCallback((entityId: string) => {
-    if (!state) return 'UNKNOWN';
-    if (entityId === 'bridge_b07') {
-      const st = state.routes.route_r12?.status || 'KNOWN';
-      if (state.conflicts.some((c) => c.entity === 'bridge_b07')) {
-        return 'CONFLICTING';
+  const getStatus = useCallback(
+    (entityId: string) => {
+      if (!state) return 'UNKNOWN';
+      if (entityId === 'bridge_b07') {
+        const st = state.routes.route_r12?.status || 'KNOWN';
+        if (state.conflicts.some((c) => c.entity === 'bridge_b07')) return 'CONFLICTING';
+        return st === 'UNAVAILABLE' ? 'UNAVAILABLE' : st;
       }
-      return st === 'UNAVAILABLE' ? 'UNAVAILABLE' : st;
-    }
-    if (state.routes[entityId]) return state.routes[entityId].status;
-    if (state.hospitals[entityId]) return state.hospitals[entityId].status;
-    if (state.shelters[entityId]) return state.shelters[entityId].status;
-    if (state.vehicles[entityId]) return state.vehicles[entityId].available ? 'KNOWN' : 'UNAVAILABLE';
-    return 'KNOWN';
-  }, [state]);
+      if (state.routes[entityId]) return state.routes[entityId].status;
+      if (state.hospitals[entityId]) return state.hospitals[entityId].status;
+      if (state.shelters[entityId]) return state.shelters[entityId].status;
+      if (state.vehicles[entityId]) return state.vehicles[entityId].available ? 'KNOWN' : 'UNAVAILABLE';
+      return 'KNOWN';
+    },
+    [state]
+  );
 
-  // Build Nodes & Edges on state change
   useEffect(() => {
     if (!state) return;
     const activeRec = state.current_packet?.route_id || 'route_r12';
-    const b07Status = getStatus('bridge_b07');
-    const r12Status = getStatus('route_r12');
-    const r14Status = getStatus('route_r14');
+    const b07 = getStatus('bridge_b07');
+    const r12 = getStatus('route_r12');
+    const r14 = getStatus('route_r14');
 
     const baseNodes: Node[] = [
-      {
-        id: 'north_relay',
-        type: 'custom',
-        position: { x: 80, y: 180 },
-        data: {
-          label: 'North Relay',
-          type: 'Comms Node',
-          status: 'KNOWN',
-          detail: '400 MHz Mesh Comms',
-          downstream: ['Bridge B-07', 'Route R-12', 'Route R-14'],
-        },
-      },
-      {
-        id: 'orbit_relay',
-        type: 'custom',
-        position: { x: 440, y: 20 },
-        data: {
-          label: 'Orbit Relay',
-          type: 'Satellite Node',
-          status: state.conflicts.some((c) => c.entity === 'bridge_b07') ? 'CONFLICTING' : 'KNOWN',
-          detail: 'Sent-2 Optical Imagery',
-          downstream: ['Bridge B-07', 'Route R-14'],
-        },
-      },
-      {
-        id: 'bridge_b07',
-        type: 'custom',
-        position: { x: 260, y: 180 },
-        data: {
-          label: 'Bridge B-07',
-          type: 'Infrastructure',
-          status: b07Status,
-          detail: 'Guwahati Waterway Crossing',
-          downstream: ['Route R-12', 'Depot D-03', 'Shelter S-04'],
-        },
-      },
-      {
-        id: 'south_depot',
-        type: 'custom',
-        position: { x: 260, y: 340 },
-        data: {
-          label: 'South Depot',
-          type: 'Backup Hub',
-          status: 'KNOWN',
-          detail: 'Reserve Evacuation Stock',
-          downstream: ['Rescue Vehicle V-02', 'Shelter S-04'],
-        },
-      },
-      {
-        id: 'route_r12',
-        type: 'custom',
-        position: { x: 440, y: 100 },
-        data: {
-          label: 'Route R-12',
-          type: 'Fast Corridor',
-          status: r12Status,
-          detail: 'ETA: 15 min · 20 Slots',
-          isRecommended: activeRec === 'route_r12',
-          downstream: ['Depot D-03', 'Shelter S-04'],
-        },
-      },
-      {
-        id: 'route_r14',
-        type: 'custom',
-        position: { x: 440, y: 260 },
-        data: {
-          label: 'Route R-14',
-          type: 'Bypass Detour',
-          status: r14Status,
-          detail: 'ETA: 35 min · 15 Slots',
-          isRecommended: activeRec === 'route_r14',
-          downstream: ['Depot D-04', 'Shelter S-04'],
-        },
-      },
-      {
-        id: 'depot_d03',
-        type: 'custom',
-        position: { x: 640, y: 100 },
-        data: {
-          label: 'Depot D-03',
-          type: 'Primary Hub',
-          status: b07Status === 'UNAVAILABLE' ? 'UNCERTAIN' : 'KNOWN',
-          detail: 'Capacity: 40',
-          downstream: ['Shelter S-04'],
-        },
-      },
-      {
-        id: 'depot_d04',
-        type: 'custom',
-        position: { x: 640, y: 260 },
-        data: {
-          label: 'Depot D-04',
-          type: 'Alternate Hub',
-          status: 'KNOWN',
-          detail: 'Capacity: 30',
-          downstream: ['Shelter S-04'],
-        },
-      },
-      {
-        id: 'shelter_s04',
-        type: 'custom',
-        position: { x: 840, y: 180 },
-        data: {
-          label: 'Shelter S-04',
-          type: 'Target Shelter',
-          status: b07Status === 'UNAVAILABLE' && activeRec !== 'route_r14' ? 'UNCERTAIN' : 'KNOWN',
-          detail: 'Evacuees: 25/50',
-          downstream: ['Guwahati Grid'],
-        },
-      },
-      {
-        id: 'vehicle_v02',
-        type: 'custom',
-        position: activeRec === 'route_r14' ? { x: 440, y: 290 } : { x: 440, y: 130 },
-        data: {
-          label: 'Vehicle V-02',
-          type: 'Transport Asset',
-          status: state.vehicles.vehicle_v02?.available !== false ? 'KNOWN' : 'UNAVAILABLE',
-          detail: 'Cap: 20 · Active Dispatch',
-          isRecommended: true,
-          downstream: ['Active Evacuation Route'],
-        },
-      },
+      { id: 'north_relay', type: 'custom', position: { x: 80, y: 180 }, data: { label: 'North Relay', type: 'Comms node', status: 'KNOWN', detail: '400 MHz mesh comms', downstream: ['Bridge B-07', 'Route R-12', 'Route R-14'] } },
+      { id: 'orbit_relay', type: 'custom', position: { x: 440, y: 20 }, data: { label: 'Orbit Relay', type: 'Satellite node', status: state.conflicts.some((c) => c.entity === 'bridge_b07') ? 'CONFLICTING' : 'KNOWN', detail: 'Sentinel-2 optical imagery', downstream: ['Bridge B-07', 'Route R-14'] } },
+      { id: 'bridge_b07', type: 'custom', position: { x: 260, y: 180 }, data: { label: 'Bridge B-07', type: 'Infrastructure', status: b07, detail: 'Guwahati waterway crossing', downstream: ['Route R-12', 'Depot D-03', 'Shelter S-04'] } },
+      { id: 'south_depot', type: 'custom', position: { x: 260, y: 340 }, data: { label: 'South Depot', type: 'Backup hub', status: 'KNOWN', detail: 'Reserve evacuation stock', downstream: ['Vehicle V-02', 'Shelter S-04'] } },
+      { id: 'route_r12', type: 'custom', position: { x: 440, y: 100 }, data: { label: 'Route R-12', type: 'Fast corridor', status: r12, detail: 'ETA 15 min · 20 slots', isRecommended: activeRec === 'route_r12', downstream: ['Depot D-03', 'Shelter S-04'] } },
+      { id: 'route_r14', type: 'custom', position: { x: 440, y: 260 }, data: { label: 'Route R-14', type: 'Bypass detour', status: r14, detail: 'ETA 35 min · 15 slots', isRecommended: activeRec === 'route_r14', downstream: ['Depot D-04', 'Shelter S-04'] } },
+      { id: 'depot_d03', type: 'custom', position: { x: 640, y: 100 }, data: { label: 'Depot D-03', type: 'Primary hub', status: b07 === 'UNAVAILABLE' ? 'UNCERTAIN' : 'KNOWN', detail: 'Capacity 40', downstream: ['Shelter S-04'] } },
+      { id: 'depot_d04', type: 'custom', position: { x: 640, y: 260 }, data: { label: 'Depot D-04', type: 'Alternate hub', status: 'KNOWN', detail: 'Capacity 30', downstream: ['Shelter S-04'] } },
+      { id: 'shelter_s04', type: 'custom', position: { x: 840, y: 180 }, data: { label: 'Shelter S-04', type: 'Target shelter', status: b07 === 'UNAVAILABLE' && activeRec !== 'route_r14' ? 'UNCERTAIN' : 'KNOWN', detail: 'Evacuees 25/50', downstream: ['Guwahati grid'] } },
+      { id: 'vehicle_v02', type: 'custom', position: { x: 80, y: 360 }, data: { label: 'Vehicle V-02', type: 'Transport asset', status: state.vehicles.vehicle_v02?.available !== false ? 'KNOWN' : 'UNAVAILABLE', detail: 'Cap 20 · active dispatch', isRecommended: true, downstream: ['Active route'] } },
     ];
 
     const branchNodes: Node[] = [
-      {
-        id: 'cf_branch_c',
-        type: 'custom',
-        position: { x: 440, y: 350 },
-        data: {
-          label: 'Branch C: Hold/Wait',
-          type: 'Counterfactual',
-          status: 'UNCERTAIN',
-          detail: 'Recon Latency +25m',
-          isGhost: true,
-          downstream: ['Verification Recon Team'],
-        },
-      },
+      { id: 'cf_branch_c', type: 'custom', position: { x: 440, y: 350 }, data: { label: 'Branch C: Hold', type: 'Counterfactual', status: 'UNCERTAIN', detail: 'Recon latency +25m', isGhost: true, downstream: ['Recon team'] } },
     ];
 
+    const edge = (id: string, s: string, t: string, color: string, w: number, animated = false, dash?: string): Edge => ({
+      id, source: s, target: t, animated, style: { stroke: color, strokeWidth: w, strokeDasharray: dash },
+    });
+
     const baseEdges: Edge[] = [
-      {
-        id: 'e-north-b07',
-        source: 'north_relay',
-        target: 'bridge_b07',
-        animated: true,
-        style: { stroke: '#6fa8dc', strokeWidth: 1.5 },
-      },
-      {
-        id: 'e-orbit-b07',
-        source: 'orbit_relay',
-        target: 'bridge_b07',
-        animated: true,
-        style: { stroke: '#6fa8dc', strokeWidth: 1.5 },
-      },
-      {
-        id: 'e-south-b07',
-        source: 'south_depot',
-        target: 'bridge_b07',
-        animated: false,
-        style: { stroke: '#3b4d56', strokeWidth: 1 },
-      },
-      {
-        id: 'e-b07-r12',
-        source: 'bridge_b07',
-        target: 'route_r12',
-        animated: activeRec === 'route_r12',
-        style: {
-          stroke: b07Status === 'UNAVAILABLE' ? '#e45b55' : b07Status === 'CONFLICTING' ? '#e7a23b' : '#65c89a',
-          strokeWidth: activeRec === 'route_r12' ? 3.5 : 2,
-          strokeDasharray: b07Status === 'UNAVAILABLE' ? '4,4' : undefined,
-        },
-      },
-      {
-        id: 'e-r12-d03',
-        source: 'route_r12',
-        target: 'depot_d03',
-        animated: activeRec === 'route_r12',
-        style: {
-          stroke: r12Status === 'UNAVAILABLE' ? '#e45b55' : '#65c89a',
-          strokeWidth: activeRec === 'route_r12' ? 3.5 : 2,
-        },
-      },
-      {
-        id: 'e-d03-s04',
-        source: 'depot_d03',
-        target: 'shelter_s04',
-        animated: true,
-        style: { stroke: '#6fa8dc', strokeWidth: 2 },
-      },
-      {
-        id: 'e-b07-r14',
-        source: 'bridge_b07',
-        target: 'route_r14',
-        animated: activeRec === 'route_r14',
-        style: {
-          stroke: activeRec === 'route_r14' ? '#65c89a' : '#6fa8dc',
-          strokeWidth: activeRec === 'route_r14' ? 3.5 : 1.5,
-        },
-      },
-      {
-        id: 'e-r14-d04',
-        source: 'route_r14',
-        target: 'depot_d04',
-        animated: activeRec === 'route_r14',
-        style: {
-          stroke: r14Status === 'UNAVAILABLE' ? '#e45b55' : '#65c89a',
-          strokeWidth: activeRec === 'route_r14' ? 3.5 : 2,
-        },
-      },
-      {
-        id: 'e-d04-s04',
-        source: 'depot_d04',
-        target: 'shelter_s04',
-        animated: true,
-        style: { stroke: '#6fa8dc', strokeWidth: 2 },
-      },
-      {
-        id: 'e-cf-branch-c',
-        source: 'bridge_b07',
-        target: 'cf_branch_c',
-        animated: false,
-        style: { stroke: '#718086', strokeWidth: 1.5, strokeDasharray: '4,4' },
-      },
+      edge('e-north-b07', 'north_relay', 'bridge_b07', C.blue, 1.5, true),
+      edge('e-orbit-b07', 'orbit_relay', 'bridge_b07', C.blue, 1.5, true),
+      edge('e-south-b07', 'south_depot', 'bridge_b07', '#2c3742', 1),
+      edge('e-b07-r12', 'bridge_b07', 'route_r12', b07 === 'UNAVAILABLE' ? C.red : b07 === 'CONFLICTING' ? C.amber : C.green, activeRec === 'route_r12' ? 3 : 1.5, activeRec === 'route_r12', b07 === 'UNAVAILABLE' ? '5,4' : undefined),
+      edge('e-r12-d03', 'route_r12', 'depot_d03', r12 === 'UNAVAILABLE' ? C.red : C.green, activeRec === 'route_r12' ? 3 : 1.5, activeRec === 'route_r12'),
+      edge('e-d03-s04', 'depot_d03', 'shelter_s04', C.blue, 1.5, true),
+      edge('e-b07-r14', 'bridge_b07', 'route_r14', activeRec === 'route_r14' ? C.green : C.blue, activeRec === 'route_r14' ? 3 : 1.5, activeRec === 'route_r14'),
+      edge('e-r14-d04', 'route_r14', 'depot_d04', r14 === 'UNAVAILABLE' ? C.red : C.green, activeRec === 'route_r14' ? 3 : 1.5, activeRec === 'route_r14'),
+      edge('e-d04-s04', 'depot_d04', 'shelter_s04', C.blue, 1.5, true),
+      edge('e-cf-branch-c', 'bridge_b07', 'cf_branch_c', C.muted, 1.5, false, '4,4'),
     ];
 
     setNodes([...baseNodes, ...branchNodes]);
     setEdges(baseEdges);
   }, [state, getStatus, setNodes, setEdges]);
 
-  // Fit View handler
-  const handleFitView = useCallback(() => {
-    if (rfInstance) {
-      rfInstance.fitView({ padding: 0.2 });
-    }
-  }, [rfInstance]);
-
-  // Auto fit view on load
   const onInit = useCallback((instance: any) => {
-    setRfInstance(instance);
-    setTimeout(() => {
-      instance.fitView({ padding: 0.2 });
-    }, 100);
+    setRf(instance);
+    setTimeout(() => instance.fitView({ padding: 0.2 }), 100);
   }, []);
 
   return (
-    <div className="panel flex flex-col font-mono text-left relative min-h-[500px] h-[500px] bg-[#07090b] border border-[#253139] rounded-lg overflow-hidden shadow-2xl">
-      {/* Top Banner matching reference image */}
-      <div className="px-4 py-2 bg-[#0a0f12] border-b border-[#253139] flex items-center justify-between text-[10px] text-[#718086]">
-        <span className="font-bold tracking-widest text-[#f1f3f0]">CURRENT REALITY</span>
-        <div className="flex items-center gap-3">
-          <span className="text-[#65c89a] font-bold">SIMULATION ACTIVE</span>
-          <span>/</span>
-          <span>LIVE LOCAL STATE</span>
+    <div className="rd-panel relative flex h-full flex-col overflow-hidden">
+      <div className="flex shrink-0 items-center justify-between border-b border-[var(--rd-border)] px-5 py-3.5">
+        <div className="flex items-center gap-2.5">
+          <GitBranch className="h-4 w-4" style={{ color: 'var(--rd-accent)' }} />
+          <span className="t-h3" style={{ color: 'var(--rd-text)' }}>Infrastructure dependencies</span>
+          <span className="t-tech hidden md:inline">how a failure cascades through the network</span>
         </div>
+        <button onClick={() => rf?.fitView({ padding: 0.2 })} className="rd-chip cursor-pointer transition-colors hover:border-[var(--rd-border-2)]">
+          <Maximize2 className="h-3.5 w-3.5" /> Fit view
+        </button>
       </div>
 
-      {/* Inner Header matching reference image */}
-      <div className="px-4 py-3 bg-[#0d1418]/90 border-b border-[#253139] flex items-center justify-between z-10">
-        <div className="flex items-center gap-2">
-          <Crosshair className="w-3.5 h-3.5 text-[#6fa8dc]" />
-          <h3 className="text-xs font-extrabold text-[#f1f3f0] uppercase tracking-wider">
-            ASSET / ROUTE MAP
-          </h3>
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleFitView}
-            className="text-[9px] px-2.5 py-1 rounded border border-[#253139] bg-[#0d1418] text-[#aab5b8] hover:text-[#f1f3f0] hover:border-[#6fa8dc] flex items-center gap-1.5 transition-all font-bold"
-          >
-            <Maximize2 className="w-3 h-3 text-[#6fa8dc]" /> FIT VIEW
-          </button>
-          <span className="text-[10px] font-bold text-[#718086] uppercase tracking-wider">
-            NORTH CORRIDOR / 04
-          </span>
-        </div>
-      </div>
-
-      {/* Atmospheric Canvas Wrapper with Explicit Height */}
-      <div
-        className="flex-1 w-full h-[380px] relative"
-        style={{
-          background:
-            'radial-gradient(ellipse at 50% 50%, rgba(15, 30, 45, 0.75), #07090b 85%)',
-        }}
-      >
+      <div className="relative flex-1" style={{ background: 'radial-gradient(ellipse at 50% 45%, rgba(20,26,32,0.7), var(--rd-bg) 85%)' }}>
         <ReactFlow
           nodes={nodes}
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           nodeTypes={NODE_TYPES}
-          onNodeClick={(_evt, node) => setSelectedNodeData(node.data)}
+          onNodeClick={(_e, node) => setSelected(node.data)}
           onInit={onInit}
           fitView
           fitViewOptions={{ padding: 0.2 }}
           proOptions={{ hideAttribution: true }}
           className="bg-transparent"
         >
-          <Background variant={BackgroundVariant.Lines} gap={36} size={1} color="#182229" />
-          <Controls className="bg-[#0d1418] border border-[#253139] text-[#aab5b8] fill-[#aab5b8]" />
+          <Background variant={BackgroundVariant.Dots} gap={30} size={1} color="#1a222b" />
+          <Controls className="!border-[var(--rd-border)]" showInteractive={false} />
         </ReactFlow>
 
-        {/* Selected Node Telemetry Inspector Popup */}
-        {selectedNodeData && (
-          <div className="absolute left-4 bottom-14 right-4 bg-[#0d1418]/95 border border-[#6fa8dc]/50 rounded p-3 text-xs shadow-2xl backdrop-blur z-30 font-mono">
-            <div className="flex items-center justify-between border-b border-[#253139] pb-1.5 mb-2">
+        {selected && (
+          <div className="absolute bottom-4 left-4 right-4 z-30 rounded-lg p-4 rd-anim-fade" style={{ background: 'var(--rd-elevated)', border: '1px solid var(--rd-border-2)', boxShadow: 'var(--rd-shadow)' }}>
+            <div className="mb-2.5 flex items-center justify-between border-b border-[var(--rd-border)] pb-2">
               <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-[#6fa8dc] animate-pulse"></span>
-                <strong className="text-[#f1f3f0] uppercase">{selectedNodeData.label} Telemetry</strong>
-                <span className="text-[9px] text-[#718086]">({selectedNodeData.type})</span>
+                <span className="rd-dot rd-pulse" style={{ background: 'var(--rd-accent)' }} />
+                <span className="t-h3" style={{ color: 'var(--rd-text)' }}>{selected.label}</span>
+                <span className="t-caption">· {selected.type}</span>
               </div>
-              <button
-                onClick={() => setSelectedNodeData(null)}
-                className="text-[#718086] hover:text-[#f1f3f0]"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <button onClick={() => setSelected(null)} aria-label="Close" className="text-[var(--rd-text-3)] hover:text-[var(--rd-text)]"><X className="h-4 w-4" /></button>
             </div>
-
-            <div className="grid grid-cols-3 gap-2 text-[10px]">
-              <div>
-                <span className="text-[#718086] block uppercase">Live Status</span>
-                <span className="text-[#65c89a] font-bold uppercase">{selectedNodeData.status}</span>
-              </div>
-              <div>
-                <span className="text-[#718086] block uppercase">Operational Specs</span>
-                <span className="text-[#aab5b8]">{selectedNodeData.detail}</span>
-              </div>
-              <div>
-                <span className="text-[#718086] block uppercase">Downstream Dependency Impact</span>
-                <span className="text-[#f5c86e]">
-                  {selectedNodeData.downstream ? selectedNodeData.downstream.join(', ') : 'None'}
-                </span>
-              </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div><div className="t-label">Status</div><div className="t-h3 mt-1" style={{ color: 'var(--rd-text)' }}>{selected.status}</div></div>
+              <div><div className="t-label">Specs</div><div className="t-body-sm mt-1" style={{ color: 'var(--rd-text-2)' }}>{selected.detail}</div></div>
+              <div><div className="t-label">Downstream impact</div><div className="t-body-sm mt-1" style={{ color: 'var(--rd-warn)' }}>{selected.downstream ? selected.downstream.join(', ') : 'None'}</div></div>
             </div>
           </div>
         )}
       </div>
 
-      {/* Bottom HUD Overlay matching reference image */}
-      <div className="px-4 py-2 bg-[#0a0f12] border-t border-[#253139] flex items-center justify-between text-[10px] text-[#718086]">
-        <span>SECTOR 04  /  ASSAM FLOOD RESPONSE  /  SIMULATED</span>
-        <div className="flex items-center gap-4 font-mono">
-          <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-[#6fa8dc]"></span> nominal
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-[#e7a23b]"></span> uncertain
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-[#e45b55]"></span> failed
-          </span>
+      <div className="flex shrink-0 items-center justify-between border-t border-[var(--rd-border)] px-5 py-2.5">
+        <span className="t-tech">Assam flood response · sector 04</span>
+        <div className="flex items-center gap-4">
+          {[['Nominal', C.blue], ['Uncertain', C.amber], ['Failed', C.red]].map(([l, c]) => (
+            <span key={l} className="flex items-center gap-1.5 t-caption text-[11px]"><span className="rd-dot" style={{ background: c as string }} /> {l}</span>
+          ))}
         </div>
       </div>
     </div>
