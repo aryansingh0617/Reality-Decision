@@ -92,6 +92,32 @@ export const DEFAULT_STATE: RealityState = {
     provenance: ['USGS Stream Gauge 01646500', 'Sentinel-2 Satellite Feed'],
     assumptions: ['Bridge B-07 structural integrity holds'],
     decision_horizon_min: 120,
+    counterfactual_branches: [
+      {
+        name: 'Branch 1: Primary Corridor (Route R-12)',
+        recommendation: 'Fastest evacuation route via Bridge B-07',
+        route_id: 'route_r12',
+        delay_min: 0,
+        branch_status: 'RECOMMENDED',
+        score: 0.94,
+      },
+      {
+        name: 'Branch 2: South Highway Detour (Route R-14)',
+        recommendation: 'Bypass corridor with 15-passenger truck capacity',
+        route_id: 'route_r14',
+        delay_min: 20,
+        branch_status: 'UNCERTAIN',
+        score: 0.78,
+      },
+      {
+        name: 'Branch 3: Shelter-In-Place Protocol',
+        recommendation: 'Hold at Shelter S-04 if both primary and bypass routes fail',
+        route_id: 'shelter_s04',
+        delay_min: 60,
+        branch_status: 'DANGER',
+        score: 0.42,
+      },
+    ],
     simulation_summary: {
       best_case: 'Route R-12 remains open; evacuation completed in 15 min.',
       worst_case: 'Bridge B-07 submerged; emergency fallback to Route R-14 (+20 min delay).',
@@ -560,8 +586,69 @@ export async function challengePlan(): Promise<any> {
   return fetchJson(`${API_BASE}/challenge`, { method: 'POST' });
 }
 
+export const DEFAULT_PROV_GRAPH = {
+  "@context": {
+    "prov": "http://www.w3.org/ns/prov#",
+    "rd": "https://reality-decision.internal/ns#"
+  },
+  "@graph": [
+    {
+      "@id": "urn:uuid:packet-v1-init",
+      "@type": "prov:Entity",
+      "prov:label": "DecisionPacket Version 1",
+      "prov:wasGeneratedBy": "urn:uuid:activity-planner-react",
+      "prov:wasAttributedTo": "urn:uuid:agent-incident-commander",
+      "rd:recommendation": "AUTHORIZE_ROUTE_R12",
+      "rd:confidence": "HIGH",
+      "rd:ttiMinutes": 112
+    },
+    {
+      "@id": "urn:uuid:sensor-usgs-01646500",
+      "@type": "prov:Entity",
+      "prov:label": "USGS Stream Gauge 01646500",
+      "rd:waterDepthM": 0.35,
+      "rd:waterRiseRateMHr": 0.15,
+      "rd:telemetryStatus": "NOMINAL"
+    },
+    {
+      "@id": "urn:uuid:sensor-sentinel2-osm",
+      "@type": "prov:Entity",
+      "prov:label": "OpenStreetMap Spatial Network",
+      "rd:roadNodes": 6,
+      "rd:bridgeStatus": "PASSABLE"
+    },
+    {
+      "@id": "urn:uuid:activity-planner-react",
+      "@type": "prov:Activity",
+      "prov:label": "Autonomous ReAct Tool-Calling Execution Loop",
+      "prov:startedAtTime": "2026-08-21T18:45:00Z",
+      "prov:used": [
+        "urn:uuid:sensor-usgs-01646500",
+        "urn:uuid:sensor-sentinel2-osm"
+      ]
+    },
+    {
+      "@id": "urn:uuid:agent-planner-ai",
+      "@type": ["prov:Agent", "prov:SoftwareAgent"],
+      "prov:label": "Gemini 3.5 Flash Autonomous Planner",
+      "rd:reasoningMode": "REASON_AND_ACT_TOOLS"
+    },
+    {
+      "@id": "urn:uuid:agent-incident-commander",
+      "@type": ["prov:Agent", "prov:Person"],
+      "prov:label": "Human Incident Commander",
+      "rd:role": "Operational Authority",
+      "rd:authorizationGate": "VERSION_LOCKED"
+    }
+  ]
+};
+
 export async function fetchW3CProvGraph(): Promise<any> {
-  return fetchJson(`${API_BASE}/provenance/w3c-prov`);
+  try {
+    return await fetchJson(`${API_BASE}/provenance/w3c-prov`);
+  } catch (_e) {
+    return DEFAULT_PROV_GRAPH;
+  }
 }
 
 export async function fetchGaugeData(siteId: string = "01646500"): Promise<any> {

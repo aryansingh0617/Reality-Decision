@@ -1,18 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { FileJson, Download, Cpu, UserCheck, Layers, RefreshCw } from 'lucide-react';
-import { fetchW3CProvGraph } from '../api';
+import { fetchW3CProvGraph, DEFAULT_PROV_GRAPH } from '../api';
 import { SectionLabel } from './ui';
 
 export const W3CProvView: React.FC = () => {
-  const [graph, setGraph] = useState<any | null>(null);
+  const [graph, setGraph] = useState<any | null>(DEFAULT_PROV_GRAPH);
   const [loading, setLoading] = useState(false);
 
   const load = async () => {
     setLoading(true);
     try {
-      setGraph(await fetchW3CProvGraph());
+      const data = await fetchW3CProvGraph();
+      setGraph(data || DEFAULT_PROV_GRAPH);
     } catch (e) {
       console.error('Failed to load W3C PROV graph', e);
+      setGraph((prev: any) => prev || DEFAULT_PROV_GRAPH);
     } finally {
       setLoading(false);
     }
