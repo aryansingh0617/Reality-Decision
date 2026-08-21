@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { History, MapPin, Sparkles, CheckCircle2, Clock } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { History, MapPin, Sparkles, CheckCircle2, Clock, Play, Square } from 'lucide-react';
 import { Badge, SectionLabel, Confidence } from './ui';
 
 export interface RealitySnapshot {
@@ -18,27 +18,69 @@ export interface RealitySnapshot {
 interface Props {
   history: RealitySnapshot[];
   currentVersion: number;
+  onNarrate?: (text: string) => void;
+  onStopNarrate?: () => void;
 }
 
-export const RealityTimeline: React.FC<Props> = ({ history, currentVersion }) => {
+export const RealityTimeline: React.FC<Props> = ({ history, currentVersion, onNarrate, onStopNarrate }) => {
   const [selected, setSelected] = useState<number>(currentVersion);
+  const [playing, setPlaying] = useState(false);
+  const playRef = useRef(false);
 
-  // Follow the latest reality version as it advances
+  // Follow the latest reality version as it advances (unless replaying)
   useEffect(() => {
-    setSelected(currentVersion);
+    if (!playRef.current) setSelected(currentVersion);
   }, [currentVersion]);
+
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  const stopReplay = () => {
+    playRef.current = false;
+    setPlaying(false);
+    onStopNarrate?.();
+  };
+
+  const startReplay = async () => {
+    if (playRef.current || history.length <= 1) return;
+    playRef.current = true;
+    setPlaying(true);
+    try {
+      for (const h of history) {
+        if (!playRef.current) break;
+        setSelected(h.version);
+        const cause = h.cause && h.cause !== 'Mission initialized' ? h.cause + '.' : 'Mission initialized.';
+        onNarrate?.(`Reality version ${h.version}. ${cause} The system recommends ${h.recommendation}, with ${h.confidence.toLowerCase()} confidence.`);
+        if (!(await (async () => { await sleep(4600); return playRef.current; })())) break;
+      }
+    } finally {
+      playRef.current = false;
+      setPlaying(false);
+    }
+  };
 
   const snap = history.find((h) => h.version === selected) || history[history.length - 1];
 
   return (
     <div className="rd-panel p-5">
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <History className="h-4 w-4" style={{ color: 'var(--rd-accent)' }} />
           <span className="t-h3" style={{ color: 'var(--rd-text)' }}>Reality timeline</span>
           <span className="t-tech hidden sm:inline">replay how each replan happened</span>
         </div>
-        <span className="t-tech">{history.length} {history.length === 1 ? 'state' : 'states'}</span>
+        <div className="flex items-center gap-2.5">
+          {history.length > 1 && (
+            <button
+              onClick={playing ? stopReplay : startReplay}
+              data-testid="timeline-replay-button"
+              className="rd-btn rd-btn-ghost"
+              style={playing ? { color: 'var(--rd-accent-2)', borderColor: 'rgba(91,141,239,0.4)' } : undefined}
+            >
+              {playing ? <><Square className="h-3.5 w-3.5" /> Stop replay</> : <><Play className="h-3.5 w-3.5" /> Replay mission</>}
+            </button>
+          )}
+          <span className="t-tech">{history.length} {history.length === 1 ? 'state' : 'states'}</span>
+        </div>
       </div>
 
       {history.length <= 1 ? (

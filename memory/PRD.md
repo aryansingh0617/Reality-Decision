@@ -41,6 +41,11 @@ Transform the existing REALITY//DECISION app into a premium, $100M-startup-quali
 - P2: Further ≤768px phone reflow if needed.
 - P3: Optional live-mode enablement + token telemetry surfacing.
 
-## Iteration 3 (2026-06) — narration + reality timeline
+## Iteration 4 (2026-06) — phone, autoplay, voice, interactive map
+- **Phone layout**: nav is horizontally scrollable; Command Center grid collapses to single column below `lg` (1024px); header controls drop progressively (Narration always visible). Situation/metrics reflow.
+- **Timeline autoplay**: `RealityTimeline` has a "Replay mission" button that auto-advances every recorded reality version and narrates each (cancel-safe via ref); appears when >1 state.
+- **Voice selection**: header "Narration" popover — enable toggle, language + voice selects (from `speechSynthesis.getVoices()`), speed slider (default 0.92×), Test voice. Shared `speak()` reads settings via refs; used by both guided demo and timeline replay. (Voice list is empty in headless browsers with no TTS; populates on real browsers.)
+- **Interactive network map**: `DependencyGraph` reinstated inside the Command Center via an Operational/Network segmented toggle (`data-testid="map-mode-operational|network"`). Added subtle radial depth gradient to the app shell.
+- Verified: network toggle, voice popover, timeline v1→v2 replay — zero console errors.
 - **Demo narration**: `runAutoDemo` speaks each step via `window.speechSynthesis` (no deps/keys); Voice on/Muted toggle in the demo banner (`data-testid="narration-toggle"`), cancel-safe via `narrateRef`.
 - **Reality timeline** (`RealityTimeline.tsx`): client-side, honest record of every observed reality version (`world_state_version`) captured in an App effect. Horizontal scrubber with clickable nodes → replays that version's recommendation / route / confidence / status / cause. Rendered in Command Center above the Sentinel bar. `data-testid="timeline-v{n}"`. Verified v1→v2 replay with zero console errors.

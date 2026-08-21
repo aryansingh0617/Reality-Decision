@@ -47,6 +47,8 @@
 
 body {
   background-color: var(--rd-bg);
+  background-image: radial-gradient(1100px 520px at 50% -8%, #10151d 0%, rgba(16,21,29,0) 62%);
+  background-attachment: fixed;
   color: var(--rd-text);
   font-family: var(--rd-font);
   margin: 0;

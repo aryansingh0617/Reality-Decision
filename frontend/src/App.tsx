@@ -41,6 +41,8 @@ import {
   Square,
   Volume2,
   VolumeX,
+  Network,
+  Settings2,
 } from 'lucide-react';
 
 type Section = 'command' | 'decision' | 'activity' | 'map' | 'analysis';
@@ -77,16 +79,58 @@ export function App() {
   const demoRef = useRef(false);
   const [narrate, setNarrate] = useState(true);
   const narrateRef = useRef(true);
+  const [rate, setRate] = useState(0.92);
+  const rateRef = useRef(0.92);
+  const [lang, setLang] = useState('en-US');
+  const langRef = useRef('en-US');
+  const [voiceURI, setVoiceURI] = useState<string | null>(null);
+  const voiceRef = useRef<string | null>(null);
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const voicesRef = useRef<SpeechSynthesisVoice[]>([]);
+  const [voiceOpen, setVoiceOpen] = useState(false);
+  const [mapMode, setMapMode] = useState<'operational' | 'network'>('operational');
   const [history, setHistory] = useState<RealitySnapshot[]>([]);
+
+  // Load available speech voices; prefer a natural English voice
+  useEffect(() => {
+    const synth = typeof window !== 'undefined' ? window.speechSynthesis : null;
+    if (!synth) return;
+    const load = () => {
+      const vs = synth.getVoices();
+      if (!vs.length) return;
+      setVoices(vs);
+      voicesRef.current = vs;
+      if (!voiceRef.current) {
+        const pref =
+          vs.find((v) => /en(-|_)US/i.test(v.lang) && /(natural|google|samantha|aria|jenny|neural)/i.test(v.name)) ||
+          vs.find((v) => v.lang.startsWith('en'));
+        if (pref) {
+          setVoiceURI(pref.voiceURI);
+          voiceRef.current = pref.voiceURI;
+          setLang(pref.lang);
+          langRef.current = pref.lang;
+        }
+      }
+    };
+    load();
+    synth.onvoiceschanged = load;
+    return () => {
+      if (synth) synth.onvoiceschanged = null;
+    };
+  }, []);
 
   const speak = (text: string) => {
     if (!narrateRef.current || typeof window === 'undefined' || !window.speechSynthesis) return;
     try {
-      window.speechSynthesis.cancel();
+      const synth = window.speechSynthesis;
+      synth.cancel();
       const u = new SpeechSynthesisUtterance(text);
-      u.rate = 1.02;
+      u.rate = rateRef.current;
       u.pitch = 1.0;
-      window.speechSynthesis.speak(u);
+      u.lang = langRef.current;
+      const v = voicesRef.current.find((vv) => vv.voiceURI === voiceRef.current);
+      if (v) u.voice = v;
+      synth.speak(u);
     } catch {}
   };
   const stopSpeaking = () => {
@@ -250,7 +294,7 @@ export function App() {
   const workingLabel = WORKING_MSGS[Math.min(localSteps.length, WORKING_MSGS.length - 1)];
 
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden" style={{ background: 'var(--rd-bg)', color: 'var(--rd-text)' }}>
+    <div className="flex h-screen w-screen flex-col overflow-hidden" style={{ background: 'radial-gradient(1100px 520px at 50% -8%, #10151d 0%, var(--rd-bg) 62%)', color: 'var(--rd-text)' }}>
       {/* Error banner */}
       {error && (
         <div className="flex items-center justify-between px-5 py-2.5 rd-anim-fade" style={{ background: 'var(--rd-danger-soft)', borderBottom: '1px solid rgba(229,100,94,0.4)' }}>
@@ -276,23 +320,94 @@ export function App() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5">
-          <button onClick={() => setWalkthroughOpen(true)} data-testid="walkthrough-button" className="rd-btn rd-btn-ghost hidden sm:inline-flex">
+        <div className="flex items-center gap-2 sm:gap-2.5">
+          <button onClick={() => setWalkthroughOpen(true)} data-testid="walkthrough-button" className="rd-btn rd-btn-ghost hidden md:inline-flex">
             <SparklesIcon className="h-3.5 w-3.5" /> How it works
           </button>
-          <button onClick={() => setVerifyOpen(true)} data-testid="verify-autonomy-button" className="rd-btn rd-btn-ghost hidden md:inline-flex">
+          <button onClick={() => setVerifyOpen(true)} data-testid="verify-autonomy-button" className="rd-btn rd-btn-ghost hidden lg:inline-flex">
             <ShieldCheck className="h-3.5 w-3.5" /> Verify autonomy
           </button>
           <button
             onClick={toggleFallback}
             data-testid="simulate-outage-button"
             title="Simulate a model outage to demonstrate deterministic fallback"
-            className="rd-btn rd-btn-ghost"
+            className="rd-btn rd-btn-ghost hidden sm:inline-flex"
             style={fallbackForced ? { color: 'var(--rd-warn)', borderColor: 'rgba(224,168,61,0.4)', background: 'var(--rd-warn-soft)' } : undefined}
           >
-            <Zap className="h-3.5 w-3.5" /> {fallbackForced ? 'Outage: on' : 'Simulate outage'}
+            <Zap className="h-3.5 w-3.5" /> <span className="hidden lg:inline">{fallbackForced ? 'Outage: on' : 'Simulate outage'}</span>
           </button>
-          <div className="hidden items-center gap-2.5 rounded-lg px-3 py-1.5 lg:flex" style={{ background: 'var(--rd-panel)', border: '1px solid var(--rd-border)' }}>
+
+          {/* Narration settings */}
+          <div className="relative">
+            <button
+              onClick={() => setVoiceOpen((o) => !o)}
+              data-testid="narration-settings-button"
+              title="Narration settings"
+              aria-label="Narration settings"
+              className="rd-btn rd-btn-ghost"
+              style={narrate ? { color: 'var(--rd-accent-2)', borderColor: 'rgba(91,141,239,0.4)' } : undefined}
+            >
+              {narrate ? <Volume2 className="h-3.5 w-3.5" /> : <VolumeX className="h-3.5 w-3.5" />}
+              <span className="hidden lg:inline">Narration</span>
+            </button>
+            {voiceOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setVoiceOpen(false)} />
+                <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-72 rounded-xl p-4 rd-anim-up" style={{ background: 'var(--rd-elevated)', border: '1px solid var(--rd-border-2)', boxShadow: 'var(--rd-shadow)' }}>
+                  <div className="mb-3 flex items-center justify-between">
+                    <span className="t-h3" style={{ color: 'var(--rd-text)' }}>Narration</span>
+                    <label className="flex cursor-pointer items-center gap-2 t-caption">
+                      <input
+                        type="checkbox"
+                        checked={narrate}
+                        data-testid="narration-enable"
+                        onChange={(e) => { setNarrate(e.target.checked); narrateRef.current = e.target.checked; if (!e.target.checked) stopSpeaking(); }}
+                        style={{ accentColor: 'var(--rd-accent)' }}
+                      />
+                      Voice-over
+                    </label>
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <div className="t-label mb-1.5">Language</div>
+                      <select
+                        value={lang}
+                        onChange={(e) => { setLang(e.target.value); langRef.current = e.target.value; const first = voices.find((v) => v.lang === e.target.value); if (first) { setVoiceURI(first.voiceURI); voiceRef.current = first.voiceURI; } }}
+                        className="w-full rounded-lg px-2.5 py-2 text-[12px]"
+                        style={{ background: 'var(--rd-panel)', border: '1px solid var(--rd-border)', color: 'var(--rd-text)' }}
+                      >
+                        {[...new Set(voices.map((v) => v.lang))].sort().map((l) => (<option key={l} value={l}>{l}</option>))}
+                      </select>
+                    </div>
+                    <div>
+                      <div className="t-label mb-1.5">Voice</div>
+                      <select
+                        value={voiceURI || ''}
+                        onChange={(e) => { setVoiceURI(e.target.value); voiceRef.current = e.target.value; }}
+                        className="w-full rounded-lg px-2.5 py-2 text-[12px]"
+                        style={{ background: 'var(--rd-panel)', border: '1px solid var(--rd-border)', color: 'var(--rd-text)' }}
+                      >
+                        {voices.filter((v) => v.lang === lang).map((v) => (<option key={v.voiceURI} value={v.voiceURI}>{v.name}</option>))}
+                      </select>
+                    </div>
+                    <div>
+                      <div className="t-label mb-1.5">Speed · {rate.toFixed(2)}×</div>
+                      <input
+                        type="range" min={0.7} max={1.2} step={0.01} value={rate}
+                        onChange={(e) => { const r = parseFloat(e.target.value); setRate(r); rateRef.current = r; }}
+                        className="w-full" style={{ accentColor: 'var(--rd-accent)' }}
+                      />
+                    </div>
+                    <button onClick={() => speak('Narration ready. This is how the guided demo will sound.')} className="rd-btn rd-btn-ghost w-full">
+                      <Volume2 className="h-3.5 w-3.5" /> Test voice
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="hidden items-center gap-2.5 rounded-lg px-3 py-1.5 xl:flex" style={{ background: 'var(--rd-panel)', border: '1px solid var(--rd-border)' }}>
             <span className="rd-dot" style={{ background: isFallback ? 'var(--rd-warn)' : 'var(--rd-success)' }} />
             <span className="t-tech" style={{ color: isFallback ? 'var(--rd-warn)' : 'var(--rd-success)' }}>{isFallback ? 'Fallback mode' : 'Live model'}</span>
           </div>
@@ -301,7 +416,7 @@ export function App() {
       </header>
 
       {/* Nav */}
-      <nav className="flex shrink-0 items-center gap-1 border-b border-[var(--rd-border)] px-5 py-2" style={{ background: 'var(--rd-surface)' }}>
+      <nav className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-[var(--rd-border)] px-3 py-2 sm:px-5" style={{ background: 'var(--rd-surface)' }}>
         {NAV.map((n) => {
           const Icon = n.icon;
           const active = section === n.key;
@@ -310,7 +425,7 @@ export function App() {
               key={n.key}
               onClick={() => setSection(n.key)}
               data-testid={`nav-${n.key}`}
-              className="flex items-center gap-2 rounded-lg px-3.5 py-2 text-[13px] font-medium transition-colors"
+              className="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-[13px] font-medium transition-colors sm:px-3.5"
               style={{
                 color: active ? 'var(--rd-text)' : 'var(--rd-text-3)',
                 background: active ? 'var(--rd-panel)' : 'transparent',
@@ -400,16 +515,39 @@ export function App() {
             {/* Map + Decision */}
             <div className="grid gap-4 lg:grid-cols-[1fr_400px]">
               <div className="flex flex-col gap-4">
-                <div className="h-[440px]"><SpatialMapCanvas state={state} activePlanRouteId={packet?.route_id} /></div>
+                <div className="flex w-max items-center gap-1 rounded-lg p-1" style={{ background: 'var(--rd-panel)', border: '1px solid var(--rd-border)' }}>
+                  {([['operational', 'Operational', MapPin], ['network', 'Network', Network]] as const).map(([k, label, Icon]) => {
+                    const active = mapMode === k;
+                    return (
+                      <button
+                        key={k}
+                        onClick={() => setMapMode(k)}
+                        data-testid={`map-mode-${k}`}
+                        className="flex items-center gap-2 rounded-md px-3 py-1.5 text-[12px] font-medium transition-colors"
+                        style={{ color: active ? 'var(--rd-text)' : 'var(--rd-text-3)', background: active ? 'var(--rd-elevated)' : 'transparent', border: `1px solid ${active ? 'var(--rd-border-2)' : 'transparent'}` }}
+                      >
+                        <Icon className="h-3.5 w-3.5" style={{ color: active ? 'var(--rd-accent)' : 'var(--rd-text-3)' }} /> {label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="h-[440px] rd-anim-fade">
+                  {mapMode === 'operational' ? (
+                    <SpatialMapCanvas state={state} activePlanRouteId={packet?.route_id} />
+                  ) : (
+                    <DependencyGraph state={state} />
+                  )}
+                </div>
                 <div className="rd-panel h-[360px] overflow-hidden"><AgentTrace steps={steps} working={working} /></div>
               </div>
-              <div className="rd-panel h-[680px] overflow-hidden lg:h-[816px]">
+              <div className="rd-panel h-[680px] overflow-hidden lg:h-[872px]">
                 <DecisionPacketView packet={packet} onAuthorize={handleAuthorize} routes={state?.routes} />
               </div>
             </div>
 
             {/* Reality timeline */}
-            <RealityTimeline history={history} currentVersion={state?.world_state_version ?? 1} />
+            <RealityTimeline history={history} currentVersion={state?.world_state_version ?? 1} onNarrate={speak} onStopNarrate={stopSpeaking} />
+
 
             {/* Sentinel */}
             <SentinelBar status={state?.sentinel_status} replanCount={state?.replan_count} version={state?.world_state_version} authorized={authorized} replanning={working} />
