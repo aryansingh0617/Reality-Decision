@@ -1,0 +1,39 @@
+# Netlify deployment config for REALITY//DECISION 2.0
+#
+# Netlify Functions do not support Python, and this app's FastAPI backend
+# relies on a persistent in-memory reality-state process, so the backend is
+# NOT deployed on Netlify. This config deploys the React/Vite frontend to
+# Netlify and transparently proxies /api/* to the backend running elsewhere
+# (Render, Railway, Fly.io, etc.) — the browser only ever talks to your
+# Netlify domain, so there's nothing to configure for CORS.
+#
+# SETUP:
+#   1. Deploy the backend first (see render.yaml at the repo root — Render
+#      is the simplest free option for a persistent Python/FastAPI process).
+#   2. Copy the backend's public URL (e.g. https://reality-decision-backend.onrender.com).
+#   3. Replace REPLACE_WITH_YOUR_BACKEND_URL below with that URL.
+#   4. Commit and deploy this site on Netlify (Add new site → Import from Git).
+
+[build]
+  base = "frontend"
+  command = "npm install && npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# Proxy API calls to the backend — keeps everything on one origin, no CORS
+# setup needed. Replace with your real backend URL after deploying it.
+[[redirects]]
+  from = "/api/*"
+  to = "https://REPLACE_WITH_YOUR_BACKEND_URL.onrender.com/api/:splat"
+  status = 200
+  force = true
+
+# Single-page app: send every other route to index.html so client-side
+# routing (the Command Center / Map / Decision / Activity / Analysis tabs)
+# works on refresh and deep links.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

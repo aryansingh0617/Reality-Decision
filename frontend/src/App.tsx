@@ -12,6 +12,7 @@ import {
 } from './api';
 
 import { SpatialMapCanvas } from './components/SpatialMapCanvas';
+import { IndiaSpatialMapCanvas } from './components/IndiaSpatialMapCanvas';
 import { DecisionPacketView } from './components/DecisionPacketView';
 import { AgentTrace } from './components/AgentTrace';
 import { DependencyGraph } from './components/DependencyGraph';
@@ -44,6 +45,7 @@ import {
   VolumeX,
   Network,
   Settings2,
+  Globe,
 } from 'lucide-react';
 
 type Section = 'command' | 'decision' | 'activity' | 'map' | 'analysis';
@@ -89,7 +91,7 @@ export function App() {
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const voicesRef = useRef<SpeechSynthesisVoice[]>([]);
   const [voiceOpen, setVoiceOpen] = useState(false);
-  const [mapMode, setMapMode] = useState<'operational' | 'network'>('operational');
+  const [mapMode, setMapMode] = useState<'operational' | 'network' | 'india'>('india');
   const [replayRouteId, setReplayRouteId] = useState<string | null>(null);
   const [replaying, setReplaying] = useState(false);
   const [history, setHistory] = useState<RealitySnapshot[]>([]);
@@ -608,7 +610,7 @@ export function App() {
             <div className="grid gap-4 lg:grid-cols-[1fr_400px]">
               <div className="flex flex-col gap-4">
                 <div className="flex w-max items-center gap-1 rounded-lg p-1" style={{ background: 'var(--rd-panel)', border: '1px solid var(--rd-border)' }}>
-                  {([['operational', 'Operational', MapPin], ['network', 'Network', Network]] as const).map(([k, label, Icon]) => {
+                  {([['india', 'India · Guwahati', Globe], ['operational', 'Operational', MapPin], ['network', 'Network', Network]] as const).map(([k, label, Icon]) => {
                     const active = mapMode === k;
                     return (
                       <button
@@ -624,7 +626,9 @@ export function App() {
                   })}
                 </div>
                 <div className="h-[440px] rd-anim-fade">
-                  {mapMode === 'operational' ? (
+                  {mapMode === 'india' ? (
+                    <IndiaSpatialMapCanvas />
+                  ) : mapMode === 'operational' ? (
                     <SpatialMapCanvas state={state} activePlanRouteId={packet?.route_id} replayRouteId={replaying ? replayRouteId : null} />
                   ) : (
                     <DependencyGraph state={state} />
@@ -679,7 +683,31 @@ export function App() {
 
         {section === 'map' && (
           <div className="mx-auto max-w-[1600px] p-5 rd-anim-fade">
-            <div className="h-[calc(100vh-190px)]"><SpatialMapCanvas state={state} activePlanRouteId={packet?.route_id} /></div>
+            <div className="mb-4 flex w-max items-center gap-1 rounded-lg p-1" style={{ background: 'var(--rd-panel)', border: '1px solid var(--rd-border)' }}>
+              {([['india', 'India · Guwahati', Globe], ['operational', 'Operational', MapPin], ['network', 'Network', Network]] as const).map(([k, label, Icon]) => {
+                const active = mapMode === k;
+                return (
+                  <button
+                    key={k}
+                    onClick={() => setMapMode(k)}
+                    data-testid={`map-mode-${k}`}
+                    className="flex items-center gap-2 rounded-md px-3 py-1.5 text-[12px] font-medium transition-colors"
+                    style={{ color: active ? 'var(--rd-text)' : 'var(--rd-text-3)', background: active ? 'var(--rd-elevated)' : 'transparent', border: `1px solid ${active ? 'var(--rd-border-2)' : 'transparent'}` }}
+                  >
+                    <Icon className="h-3.5 w-3.5" style={{ color: active ? 'var(--rd-accent)' : 'var(--rd-text-3)' }} /> {label}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="h-[calc(100vh-240px)]">
+              {mapMode === 'india' ? (
+                <IndiaSpatialMapCanvas />
+              ) : mapMode === 'operational' ? (
+                <SpatialMapCanvas state={state} activePlanRouteId={packet?.route_id} />
+              ) : (
+                <DependencyGraph state={state} />
+              )}
+            </div>
             <div className="mt-4"><SentinelBar status={state?.sentinel_status} replanCount={state?.replan_count} version={state?.world_state_version} authorized={authorized} replanning={working} /></div>
           </div>
         )}

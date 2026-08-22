@@ -16,6 +16,7 @@ from core.state.reality_state import RealityState, EntityStatus, MissionPolicy
 from core.state.entity_status import ConfidenceClass
 from agents.llm_client import is_llm_mode_active, get_authoritative_status, toggle_simulated_fallback
 from simulation.benchmark.autonomy_harness import run_autonomy_verification_suite
+from core.ingestion.india_osm_ingestion import router as india_router
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -438,6 +439,10 @@ def get_drone_waypoints(entity_id: str = "bridge_b07"):
 def ingest_osm_gis():
     from core.ingestion.osm_ingestion import OSMIngestionEngine
     return OSMIngestionEngine.fetch_osm_disaster_geojson()
+
+# India-Specific Real-Data Interactive Map — Brahmaputra/Guwahati flood corridor
+if india_router is not None:
+    router.include_router(india_router)
 
 # Mount all API routes under BOTH "/api" AND root ""
 app.include_router(router, prefix="/api")
