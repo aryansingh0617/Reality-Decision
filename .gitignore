@@ -49,8 +49,12 @@ backup/
 scratch/
 app/dist/
 *.env
-# Generated Docs
+# Generated Docs & Statistical Artifacts
 *.pdf
 *.docx
 *.pptx
+*.png
+disaster_simulation_metrics.csv
+statistical_impact_summary.json
+
 
