@@ -17,8 +17,6 @@ import { AgentTrace } from './components/AgentTrace';
 import { DependencyGraph } from './components/DependencyGraph';
 import { CounterfactualFutures } from './components/CounterfactualFutures';
 import { W3CProvView } from './components/W3CProvView';
-import { VerifyAutonomyPanel } from './components/VerifyAutonomyPanel';
-import { GuidedWalkthrough } from './components/GuidedWalkthrough';
 import { WorkflowStepper } from './components/WorkflowStepper';
 import { SentinelBar } from './components/SentinelBar';
 import { RealityTimeline, type RealitySnapshot } from './components/RealityTimeline';
@@ -69,8 +67,6 @@ export function App() {
   const [localSteps, setLocalSteps] = useState<AgentStep[]>([]);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [walkthroughOpen, setWalkthroughOpen] = useState(false);
-  const [verifyOpen, setVerifyOpen] = useState(false);
   const [complianceOpen, setComplianceOpen] = useState(false);
   const [dispatchSlipOpen, setDispatchSlipOpen] = useState(false);
   const [alertsOpen, setAlertsOpen] = useState(false);
@@ -874,8 +870,6 @@ export function App() {
       </main>
 
       {/* Modals */}
-      <GuidedWalkthrough isOpen={walkthroughOpen} onClose={() => setWalkthroughOpen(false)} />
-      <VerifyAutonomyPanel isOpen={verifyOpen} onClose={() => setVerifyOpen(false)} />
       <PSComplianceModal isOpen={complianceOpen} onClose={() => setComplianceOpen(false)} lang={appLang} />
       <DispatchSlipModal isOpen={dispatchSlipOpen} onClose={() => setDispatchSlipOpen(false)} state={state} lang={appLang} />
       <AlertsNotificationModal isOpen={alertsOpen} onClose={() => setAlertsOpen(false)} lang={appLang} />
