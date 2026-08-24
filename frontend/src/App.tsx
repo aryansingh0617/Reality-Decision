@@ -174,18 +174,27 @@ export function App() {
     } catch {}
   };
 
-  // Poll state on mount
+  // Poll state on mount with automatic background reconnect
   useEffect(() => {
     let mounted = true;
-    fetchState()
-      .then((s) => {
-        if (mounted && s) setState(s);
-      })
-      .catch((err) => {
-        if (mounted) setError(err.message || 'Failed to connect to backend');
-      });
+    const poll = async () => {
+      try {
+        const s = await fetchState();
+        if (mounted && s) {
+          setState(s);
+          setError(null);
+        }
+      } catch (_err) {
+        if (mounted) {
+          setState((prev) => prev || DEFAULT_STATE);
+        }
+      }
+    };
+    poll();
+    const interval = setInterval(poll, 3000);
     return () => {
       mounted = false;
+      clearInterval(interval);
     };
   }, []);
 

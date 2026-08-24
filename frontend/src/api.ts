@@ -453,7 +453,17 @@ export async function fetchVerifyAutonomyHarness(): Promise<HarnessSuiteResult> 
 }
 
 export async function fetchState(): Promise<RealityState> {
-  return fetchJson(`${API_BASE}/state`);
+  try {
+    const data = await fetchJson(`${API_BASE}/state`);
+    return data;
+  } catch (_e) {
+    try {
+      const dataFallback = await fetchJson('/api/state');
+      return dataFallback;
+    } catch (_e2) {
+      return DEFAULT_STATE;
+    }
+  }
 }
 
 export async function initializeMission(): Promise<RealityState> {
