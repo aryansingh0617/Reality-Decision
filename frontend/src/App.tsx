@@ -403,10 +403,17 @@ export function App() {
   const workingLabel = WORKING_MSGS[Math.min(localSteps.length, WORKING_MSGS.length - 1)];
 
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden bg-[#07090e] text-[#f8fafc]">
+    <div className="relative flex h-screen w-screen flex-col overflow-hidden bg-[#020509] text-[#f8fafc]">
+      {/* Ambient Glassmorphic Background Mesh Spheres */}
+      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+        <div className="absolute -top-40 left-1/4 h-[550px] w-[550px] rounded-full bg-cyan-500/15 blur-[130px]" />
+        <div className="absolute top-1/3 -right-20 h-[600px] w-[600px] rounded-full bg-emerald-500/10 blur-[140px]" />
+        <div className="absolute -bottom-32 left-1/3 h-[650px] w-[650px] rounded-full bg-indigo-600/12 blur-[160px]" />
+      </div>
+
       {/* Error banner */}
       {error && (
-        <div className="flex items-center justify-between px-4 py-2 bg-rose-950/80 border-b border-rose-600 text-rose-200 rd-anim-fade text-xs">
+        <div className="relative z-50 flex items-center justify-between px-4 py-2 bg-rose-950/80 border-b border-rose-600 text-rose-200 rd-anim-fade text-xs backdrop-blur-md">
           <div className="flex items-center gap-2">
             <AlertTriangle className="h-3.5 w-3.5 text-rose-400" />
             <span>{t.engineUnreachable} ({error})</span>
@@ -417,8 +424,8 @@ export function App() {
         </div>
       )}
 
-      {/* Unified Tactical Header */}
-      <header className="flex h-14 shrink-0 items-center justify-between border-b border-[var(--rd-border)] px-5 bg-[var(--rd-surface)]/90 backdrop-blur-xl shadow-lg sticky top-0 z-40">
+      {/* Unified Tactical Glass Header */}
+      <header className="glass-header relative z-40 flex h-14 shrink-0 items-center justify-between px-5 sticky top-0 shadow-2xl">
         <div className="flex items-center gap-3.5">
           <div className="relative flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 via-sky-600 to-blue-700 font-bold text-white shadow-lg shadow-cyan-500/25 border border-cyan-400/30 text-sm">
             प्र
