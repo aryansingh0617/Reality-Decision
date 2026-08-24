@@ -985,6 +985,8 @@ if dist_dir:
 
     @app.get("/{full_path:path}")
     def serve_spa(full_path: str):
+        if full_path.startswith("api/") or full_path == "api":
+            raise HTTPException(status_code=404, detail=f"API endpoint '/{full_path}' not found")
         file_path = os.path.join(dist_dir, full_path)
         if os.path.exists(file_path) and os.path.isfile(file_path):
             return FileResponse(file_path)
