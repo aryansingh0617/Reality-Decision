@@ -769,7 +769,7 @@ export function App() {
                 </div>
 
                 <div className="rd-panel h-[360px] overflow-hidden bg-[var(--rd-surface)] border border-[var(--rd-border)] rounded-xl shadow-lg">
-                  <AgentTrace steps={steps} working={working} lang={appLang} />
+                  <AgentTrace steps={steps} working={working} lang={appLang} onRunCycle={runCycle} />
                 </div>
               </div>
 
@@ -819,7 +819,7 @@ export function App() {
         {section === 'activity' && (
           <div className="mx-auto max-w-[1400px] p-4 rd-anim-fade">
             <div className="rd-panel min-h-[700px] overflow-hidden bg-[var(--rd-surface)] border border-[var(--rd-border)] rounded-xl shadow-2xl">
-              <AgentTrace steps={steps} working={working} lang={appLang} />
+              <AgentTrace steps={steps} working={working} lang={appLang} onRunCycle={runCycle} />
             </div>
           </div>
         )}
