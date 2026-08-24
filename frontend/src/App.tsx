@@ -487,12 +487,6 @@ export function App() {
           <button onClick={() => setComplianceOpen(true)} data-testid="compliance-matrix-button" className="rd-btn rd-btn-ghost hidden sm:inline-flex text-xs text-cyan-300 border-cyan-800/60 bg-cyan-950/40 hover:bg-cyan-900/60 shadow-sm">
             <ShieldCheck className="h-3.5 w-3.5 text-cyan-400" /> {isHindi ? 'PS 26002 अनुपालन' : 'PS 26002 Matrix'}
           </button>
-          <button onClick={() => setWalkthroughOpen(true)} data-testid="walkthrough-button" className="rd-btn rd-btn-ghost hidden md:inline-flex text-xs text-slate-300 hover:text-white">
-            <SparklesIcon className="h-3.5 w-3.5 text-cyan-400" /> {t.howItWorks}
-          </button>
-          <button onClick={() => setVerifyOpen(true)} data-testid="verify-autonomy-button" className="rd-btn rd-btn-ghost hidden lg:inline-flex text-xs text-emerald-300 hover:text-emerald-200 border-emerald-900/40 bg-emerald-950/20">
-            <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" /> {t.verifyAutonomy}
-          </button>
           <button
             onClick={toggleFallback}
             data-testid="simulate-outage-button"
