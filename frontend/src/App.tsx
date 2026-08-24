@@ -26,6 +26,9 @@ import { Metric } from './components/ui';
 import { PravahDashboardViews, PravahDataBadge, type DashboardMode } from './components/PravahDashboardViews';
 import { PSComplianceModal } from './components/PSComplianceModal';
 import { DispatchSlipModal } from './components/DispatchSlipModal';
+import { AlertsNotificationModal } from './components/AlertsNotificationModal';
+import { FieldReporterModal } from './components/FieldReporterModal';
+import { GovtIntegrationModal } from './components/GovtIntegrationModal';
 import { TRANSLATIONS, type Language } from './i18n';
 
 import {
@@ -50,6 +53,10 @@ import {
   Settings2,
   Languages,
   FileText,
+  Bell,
+  Camera,
+  Globe2,
+  Radio,
 } from 'lucide-react';
 
 type Section = 'command' | 'decision' | 'activity' | 'map' | 'analysis';
@@ -66,6 +73,9 @@ export function App() {
   const [verifyOpen, setVerifyOpen] = useState(false);
   const [complianceOpen, setComplianceOpen] = useState(false);
   const [dispatchSlipOpen, setDispatchSlipOpen] = useState(false);
+  const [alertsOpen, setAlertsOpen] = useState(false);
+  const [fieldReporterOpen, setFieldReporterOpen] = useState(false);
+  const [govtIntegrationOpen, setGovtIntegrationOpen] = useState(false);
   const [fallbackForced, setFallbackForced] = useState(false);
   const [demo, setDemo] = useState<{ active: boolean; caption: string; step: number }>({ active: false, caption: '', step: 0 });
   const demoRef = useRef(false);
@@ -430,6 +440,37 @@ export function App() {
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Real-time Alerts Hub Button */}
+          <button
+            onClick={() => setAlertsOpen(true)}
+            data-testid="alerts-hub-button"
+            className="relative rd-btn rd-btn-ghost text-xs text-rose-300 border-rose-800/60 bg-rose-950/40 hover:bg-rose-900/60 shadow-sm"
+          >
+            <Bell className="h-3.5 w-3.5 text-rose-400 animate-bounce" />
+            <span className="hidden sm:inline">{isHindi ? 'चेतावनी (3)' : 'Alerts (3)'}</span>
+            <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping absolute -top-0.5 -right-0.5" />
+          </button>
+
+          {/* Field Scout App (PWA) Button */}
+          <button
+            onClick={() => setFieldReporterOpen(true)}
+            data-testid="field-reporter-button"
+            className="rd-btn rd-btn-ghost hidden xl:inline-flex text-xs text-amber-300 border-amber-800/60 bg-amber-950/40 hover:bg-amber-900/60 shadow-sm"
+          >
+            <Camera className="h-3.5 w-3.5 text-amber-400" />
+            <span>{isHindi ? 'स्काउट ऐप (PWA)' : 'Field Scout (PWA)'}</span>
+          </button>
+
+          {/* Govt Systems & Cloud Hub Button */}
+          <button
+            onClick={() => setGovtIntegrationOpen(true)}
+            data-testid="govt-integration-button"
+            className="rd-btn rd-btn-ghost hidden xl:inline-flex text-xs text-cyan-300 border-cyan-800/60 bg-cyan-950/40 hover:bg-cyan-900/60 shadow-sm"
+          >
+            <Globe2 className="h-3.5 w-3.5 text-cyan-400" />
+            <span>{isHindi ? 'सरकारी प्रणालियां (7)' : 'Govt Hub (7)'}</span>
+          </button>
+
           {/* Language Switcher */}
           <button
             onClick={() => setAppLang((l) => (l === 'en' ? 'hi' : 'en'))}
@@ -843,6 +884,9 @@ export function App() {
       <VerifyAutonomyPanel isOpen={verifyOpen} onClose={() => setVerifyOpen(false)} />
       <PSComplianceModal isOpen={complianceOpen} onClose={() => setComplianceOpen(false)} lang={appLang} />
       <DispatchSlipModal isOpen={dispatchSlipOpen} onClose={() => setDispatchSlipOpen(false)} state={state} lang={appLang} />
+      <AlertsNotificationModal isOpen={alertsOpen} onClose={() => setAlertsOpen(false)} lang={appLang} />
+      <FieldReporterModal isOpen={fieldReporterOpen} onClose={() => setFieldReporterOpen(false)} lang={appLang} onReportSubmitted={() => { fetchState().then(setState); }} />
+      <GovtIntegrationModal isOpen={govtIntegrationOpen} onClose={() => setGovtIntegrationOpen(false)} lang={appLang} />
     </div>
   );
 }
