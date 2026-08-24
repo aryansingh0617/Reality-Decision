@@ -41,9 +41,13 @@ export const Metric: React.FC<{ label: string; value: React.ReactNode; hint?: Re
 }) => {
   const t = TONE[tone] || TONE.neutral;
   return (
-    <div className="rd-card px-3.5 py-2.5 border border-[var(--rd-border)] rounded-xl bg-[var(--rd-panel)] flex flex-col justify-between">
-      <div className="t-label text-slate-400">{label}</div>
-      <div className="t-num mt-1 text-[18px] font-bold tracking-tight" style={{ color: tone === 'neutral' ? 'var(--rd-text)' : t.fg }}>
+    <div className="rd-card relative overflow-hidden px-4 py-3 border border-[var(--rd-border)] rounded-xl bg-[var(--rd-panel)] flex flex-col justify-between shadow-sm hover:border-slate-700 transition-all">
+      <div
+        className="absolute top-0 left-0 right-0 h-[2px]"
+        style={{ background: tone === 'neutral' ? 'rgba(255,255,255,0.08)' : t.fg }}
+      />
+      <div className="t-label text-slate-400 font-semibold">{label}</div>
+      <div className="t-num mt-1 text-[20px] font-bold tracking-tight font-mono" style={{ color: tone === 'neutral' ? 'var(--rd-text)' : t.fg }}>
         {value}
       </div>
       {hint && <div className="t-caption text-[11px] text-slate-400 mt-0.5 truncate">{hint}</div>}
