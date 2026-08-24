@@ -351,6 +351,11 @@ def inject_event(req: Optional[InjectEventRequest] = None):
     
     evt = DEMO_EVENTS[event_id]
     orch.process_events([evt])
+    # Automatically dispatch real-time emergency push to connected phones
+    send_phone_push(
+        title=f"🚨 PRAVAH: {evt.get('label', 'Disruption Injected')}",
+        message=f"Disruption detected: {evt.get('label')}. Brahmaputra water depth: {orch.state.current_water_depth}m. Re-routing active."
+    )
     return {"status": "injected", "event": evt.get("label"), "state": serialize_state(orch.state)}
 
 @router.api_route("/policy", methods=["GET", "POST"])
@@ -829,6 +834,42 @@ def get_alerts():
     return {
         "total_alerts": len(alerts),
         "alerts": alerts,
+    }
+
+def send_phone_push(title: str, message: str, topic: str = "pravah-alerts-sih2026", priority: str = "urgent", tags: str = "rotating_light,warning"):
+    """Dispatches real-time push notifications to subscribed mobile devices via ntfy gateway."""
+    try:
+        import urllib.request
+        req = urllib.request.Request(
+            f"https://ntfy.sh/{topic}",
+            data=message.encode("utf-8"),
+            headers={
+                "Title": title,
+                "Priority": priority,
+                "Tags": tags,
+            }
+        )
+        urllib.request.urlopen(req, timeout=3.0)
+    except Exception as e:
+        logger.warning(f"Phone push delivery failed: {e}")
+
+class PhoneBroadcastRequest(BaseModel):
+    title: Optional[str] = "PRAVAH EMERGENCY ALERT"
+    message: Optional[str] = "🚨 Disruption detected in NER transport corridor. Immediate rerouting active."
+    topic: Optional[str] = "pravah-alerts-sih2026"
+    priority: Optional[str] = "urgent"
+
+@router.api_route("/alerts/broadcast-phone", methods=["GET", "POST"])
+def broadcast_to_phone(req: Optional[PhoneBroadcastRequest] = None):
+    topic = req.topic if req and req.topic else "pravah-alerts-sih2026"
+    title = req.title if req and req.title else "PRAVAH DISASTER ALERT"
+    message = req.message if req and req.message else "🚨 CRITICAL: Saraighat Bridge B-07 Submerged! Water Depth: 0.52m. Rerouting Mission M-17 via NH-6 Bypass."
+    send_phone_push(title=title, message=message, topic=topic)
+    return {
+        "status": "broadcast_sent",
+        "topic": topic,
+        "channel": f"https://ntfy.sh/{topic}",
+        "timestamp": datetime.now().isoformat()
     }
 
 import hashlib
