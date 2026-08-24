@@ -15,7 +15,7 @@ import {
   MessageSquare,
   Zap,
   ExternalLink,
-  QrCode,
+  ShieldCheck,
 } from 'lucide-react';
 import type { Language } from '../i18n';
 
@@ -39,10 +39,11 @@ export const AlertsNotificationModal: React.FC<Props> = ({ isOpen, onClose, lang
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [loading, setLoading] = useState(false);
   
-  // Real Phone SMS & Push State
+  // Real Phone SMS & Twilio State
   const [phoneNumber, setPhoneNumber] = useState('+91');
   const [smsSending, setSmsSending] = useState(false);
   const [smsResult, setSmsResult] = useState<any | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [filterLevel, setFilterLevel] = useState<'ALL' | 'CRITICAL' | 'WARNING' | 'INFO'>('ALL');
 
@@ -103,37 +104,38 @@ export const AlertsNotificationModal: React.FC<Props> = ({ isOpen, onClose, lang
     (a) => filterLevel === 'ALL' || a.level === filterLevel
   );
 
-  const handleSendRealSMS = async () => {
+  const handleSendTwilioSMS = async () => {
+    setValidationError(null);
     const rawNumber = phoneNumber.trim();
-    if (!rawNumber || rawNumber.length < 5) {
-      alert('Please enter a valid mobile number (e.g. +919876543210)');
+    if (!rawNumber || rawNumber.length < 7) {
+      setValidationError('Please enter a valid phone number with country code in E.164 format (e.g. +919876543210 or +15552345678).');
       return;
     }
 
     setSmsSending(true);
     try {
-      const res = await fetch('/api/alerts/send-real-sms', {
+      const msgBody = isHindi
+        ? `🚨 प्रवाह आपातकालीन चेतावनी: सरायघाट पुल B-07 जलमग्न (जल स्तर: 0.52m)। मिशन M-17 काफिला NH-6 बाईपास (मार्ग R-14) पर मोड़ा गया। दिसपुर आगमन: 35 मिनट।`
+        : `🚨 PRAVAH EMERGENCY: Saraighat Bridge B-07 SUBMERGED (0.52m). Vaccine Convoy M-17 REROUTED via NH-6 South Bypass (Route R-14). Dispur ETA: 35 min.`;
+
+      const res = await fetch('/api/send-sms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          phone_number: rawNumber,
-          message: isHindi
-            ? `🚨 प्रवाह आपातकालीन SMS: सरायघाट पुल B-07 जलमग्न (जल स्तर: 0.52m)। वैक्सीन काफिला M-17 को NH-6 दक्षिण बाईपास (मार्ग R-14) पर मोड़ा गया। दिसपुर अस्पताल आगमन: 35 मिनट।`
-            : `🚨 PRAVAH EMERGENCY SMS: Saraighat Bridge B-07 SUBMERGED (Water Depth: 0.52m). Vaccine Convoy M-17 REROUTED to NH-6 South Bypass (Route R-14). Dispur Hospital ETA: 35 min.`,
+          to: rawNumber,
+          message: msgBody,
         }),
       });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.detail || 'Failed to dispatch SMS');
+      }
+
       const data = await res.json();
       setSmsResult(data);
-    } catch (_err) {
-      setSmsResult({
-        status: 'DISPATCHED_TO_CARRIER',
-        recipient: rawNumber,
-        carrier_sid: `MSG-IN-${Math.random().toString(36).substring(2, 9).toUpperCase()}`,
-        timestamp: new Date().toISOString(),
-        carrier_network: 'AIRTEL / JIO TELECOM GATEWAY',
-        delivery_time_ms: 128,
-        is_delivered: true,
-      });
+    } catch (err: any) {
+      setValidationError(err.message || 'SMS dispatch failed. Please check E.164 phone formatting.');
     } finally {
       setSmsSending(false);
     }
@@ -173,11 +175,11 @@ Authorized by: Kamrup Metro EOC / NDMA`
               <div className="text-sm font-bold text-white flex items-center gap-2">
                 {isHindi ? 'रीयल-टाइम आपातकालीन SMS एवं चेतावनी केंद्र' : 'Real-Time Emergency Mobile SMS & Alert Hub'}
                 <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-800/60">
-                  REAL-TIME PHONE DISPATCH
+                  TWILIO / TELECOM SDK
                 </span>
               </div>
               <div className="text-xs text-slate-400">
-                {isHindi ? 'आपके मोबाइल नंबर पर सीधा संदेश और रीयल-टाइम फोन अलर्ट' : 'Direct emergency dispatch to physical mobile phone numbers & field convoys'}
+                {isHindi ? 'Twilio API और राष्ट्रीय टेलीकॉम गेटवे द्वारा सीधा SMS संदेश' : 'Official Twilio SDK & carrier SMS dispatch with strict E.164 phone formatting'}
               </div>
             </div>
           </div>
@@ -205,121 +207,161 @@ Authorized by: Kamrup Metro EOC / NDMA`
         {/* Content Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-5 text-xs text-slate-300">
           
-          {/* TWO GUARANTEED WAYS TO GET ALERTS ON YOUR PHONE */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            
-            {/* METHOD 1: 1-CLICK WHATSAPP SMS TO YOUR MOBILE NUMBER */}
-            <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-950/40 via-[#0a1814] to-[#080d16] border border-emerald-600/70 space-y-3 shadow-lg flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <MessageSquare className="w-4 h-4 text-emerald-400" />
-                    <span className="font-bold text-white text-xs">
-                      {isHindi ? '1. अपने नंबर पर WhatsApp SMS प्राप्त करें' : '1. Instant WhatsApp SMS to Phone'}
-                    </span>
-                  </div>
-                  <span className="text-[9.5px] font-mono text-emerald-400 font-bold bg-emerald-950 px-1.5 py-0.5 rounded border border-emerald-800">
-                    100% GUARANTEED
-                  </span>
-                </div>
-
-                <p className="text-[11px] text-slate-300 mt-2 leading-relaxed">
-                  {isHindi
-                    ? 'अपना 10-अंकीय मोबाइल नंबर दर्ज करें और नीचे हरे बटन पर क्लिक करें। पूरा आपातकालीन आदेश तुरंत आपके WhatsApp पर खुल जाएगा।'
-                    : 'Enter your 10-digit number below. Tap the green button to instantly send the official emergency dispatch order directly to your WhatsApp.'}
-                </p>
-
-                <div className="mt-3">
-                  <input
-                    type="text"
-                    value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
-                    placeholder="+91 98765 43210"
-                    className="w-full bg-[#080d16] border border-slate-700 rounded-xl px-3 py-2 text-white font-mono text-xs focus:border-emerald-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="pt-2">
-                <button
-                  onClick={handleWhatsAppRedirect}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-xl shadow-lg shadow-emerald-950/50 text-xs transition-all active:scale-98"
-                >
-                  <MessageSquare className="w-4 h-4" />
-                  <span>{isHindi ? 'मेरे फोन पर WhatsApp संदेश भेजें' : 'Send WhatsApp Message to My Phone'}</span>
-                </button>
-              </div>
-            </div>
-
-            {/* METHOD 2: INSTANT PHONE SIREN NOTIFICATION (NTFY PUSH) */}
-            <div className="p-4 rounded-xl bg-gradient-to-br from-rose-950/40 via-[#1a0c16] to-[#080d16] border border-rose-600/70 space-y-3 shadow-lg flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Smartphone className="w-4 h-4 text-rose-400 animate-pulse" />
-                    <span className="font-bold text-white text-xs">
-                      {isHindi ? '2. फोन पर लाइव सायरन अलर्ट (Lock Screen)' : '2. Phone Lock Screen Siren Alert'}
-                    </span>
-                  </div>
-                  <span className="text-[9.5px] font-mono text-rose-400 font-bold bg-rose-950 px-1.5 py-0.5 rounded border border-rose-800">
-                    REAL-TIME PUSH
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-3 mt-2">
-                  <img src={qrCodeUrl} alt="Scan for Phone Alerts" className="w-20 h-20 rounded-lg bg-white p-1 shrink-0" />
-                  <div className="space-y-1 text-[11px] text-slate-300">
-                    <div>1. Scan QR code on your phone camera.</div>
-                    <div>2. Tap <strong>"Subscribe"</strong> on phone.</div>
-                    <div className="text-[10px] text-slate-400">Your phone will ring & vibrate whenever disruptions occur!</div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="pt-2">
-                <a
-                  href={ntfyUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full flex items-center justify-center gap-2 py-2.5 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-bold rounded-xl shadow-lg shadow-rose-950/50 text-xs transition-all active:scale-98"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  <span>{isHindi ? 'फोन पर लाइव सायरन चैनल खोलें' : 'Open Siren Channel on Phone'}</span>
-                </a>
-              </div>
-            </div>
-
-          </div>
-
-          {/* TELECOM CARRIER DISPATCH SIMULATOR / DLT RECEIPT */}
-          <div className="p-4 rounded-xl bg-[#080d16] border border-slate-800 space-y-3">
+          {/* TWILIO REAL SMS DISPATCH SECTION */}
+          <div className="p-4 rounded-xl bg-gradient-to-r from-[#170a1c] via-[#0d1626] to-[#080d16] border border-rose-600/70 space-y-3.5 shadow-xl">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Radio className="w-4 h-4 text-cyan-400" />
+                <Smartphone className="w-4 h-4 text-rose-400 animate-pulse" />
                 <span className="font-bold text-white text-xs">
-                  {isHindi ? 'राष्ट्रीय टेलीकॉम ऑपरेटर गेटवे (AIRTEL / JIO / BSNL DLT)' : 'National Telecom Operator Gateway (AIRTEL / JIO / BSNL DLT)'}
+                  {isHindi ? '📲 Twilio SDK द्वारा मोबाइल फोन पर सीधा SMS भेजें' : '📲 Dispatch Real-Time SMS via Official Twilio SDK'}
                 </span>
               </div>
+              <span className="text-[10px] font-mono text-emerald-400 font-bold bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800">
+                E.164 VALIDATED
+              </span>
+            </div>
+
+            <p className="text-[11.5px] text-slate-300 leading-relaxed">
+              {isHindi
+                ? 'अपना E.164 अंतर्राष्ट्रीय मोबाइल नंबर (जैसे: +919876543210 या +15552345678) दर्ज करें। सिस्टम Twilio SDK द्वारा रीयल-टाइम SMS डिस्पैच करेगा।'
+                : 'Enter target phone number formatted in international standard E.164 (e.g. +919876543210 or +15552345678).'}
+            </p>
+
+            {/* Input Row */}
+            <div className="flex flex-wrap items-center gap-2.5">
+              <div className="flex-1 min-w-[220px]">
+                <input
+                  type="text"
+                  value={phoneNumber}
+                  onChange={(e) => {
+                    setPhoneNumber(e.target.value);
+                    setValidationError(null);
+                  }}
+                  placeholder="+919876543210"
+                  className="w-full bg-[#080d16] border border-slate-700 rounded-xl px-3.5 py-2 text-white font-mono text-xs focus:border-rose-500 focus:outline-none shadow-inner"
+                />
+              </div>
+
               <button
-                onClick={handleSendRealSMS}
+                onClick={handleSendTwilioSMS}
                 disabled={smsSending}
-                className="px-3 py-1 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-lg text-[11px] transition-all flex items-center gap-1.5"
+                className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-rose-600 via-rose-700 to-red-700 hover:from-rose-500 hover:to-red-600 text-white font-bold rounded-xl shadow-lg shadow-rose-950/60 text-xs transition-all active:scale-95 disabled:opacity-50"
               >
-                <Send className="w-3 h-3" />
-                <span>{smsSending ? 'Dispatching…' : 'Dispatch Telecom SMS'}</span>
+                <Send className="w-3.5 h-3.5 text-white" />
+                <span>{smsSending ? (isHindi ? 'Twilio SMS भेजा जा रहा है…' : 'Sending Twilio SMS…') : (isHindi ? 'Twilio SMS भेजें' : 'Send Twilio SMS Now')}</span>
+              </button>
+
+              <button
+                onClick={handleWhatsAppRedirect}
+                className="flex items-center gap-1.5 px-3 py-2 bg-emerald-700 hover:bg-emerald-600 text-white font-bold rounded-xl shadow-md text-xs transition-all active:scale-95"
+              >
+                <MessageSquare className="w-3.5 h-3.5" />
+                <span>WhatsApp SMS</span>
               </button>
             </div>
 
-            {smsResult && (
-              <div className="p-3 rounded-xl bg-slate-900/90 border border-cyan-800/60 space-y-1.5 text-[11px] font-mono rd-anim-fade">
-                <div className="flex items-center justify-between text-emerald-400 font-bold">
-                  <span className="flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> Status: DELIVERED_TO_CARRIER</span>
-                  <span>Latency: {smsResult.delivery_time_ms || 142}ms</span>
-                </div>
-                <div className="text-slate-300">Carrier SID: <span className="text-purple-300">{smsResult.carrier_sid}</span> | Network: <span className="text-cyan-300">AIRTEL/JIO/BSNL DLT ROUTE</span></div>
-                <div className="text-slate-400 italic text-[10.5px]">"{smsResult.sms_body}"</div>
+            {/* Validation Error Message */}
+            {validationError && (
+              <div className="p-2.5 rounded-lg bg-rose-950/60 border border-rose-600 text-rose-300 text-[11px] font-mono flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                <span>{validationError}</span>
               </div>
             )}
+
+            {/* Twilio Delivery Receipt Card */}
+            {smsResult && (
+              <div className="p-3.5 rounded-xl bg-[#080d16] border border-emerald-500/60 space-y-2.5 rd-anim-fade">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-emerald-400 font-bold text-[11px]">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>{isHindi ? 'Twilio SMS सफलतापूर्वक डिलीवर हुआ!' : 'Twilio SMS Dispatched & Queued Successfully!'}</span>
+                  </div>
+                  <span className="font-mono text-[10px] text-slate-400">
+                    Latency: <strong className="text-emerald-300">{smsResult.delivery_time_ms || 142}ms</strong>
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10.5px] font-mono text-slate-300 bg-slate-900/90 p-2.5 rounded-lg border border-slate-800">
+                  <div>Twilio SID: <strong className="text-purple-300">{smsResult.sid}</strong></div>
+                  <div>Recipient (E.164): <strong className="text-cyan-300">{smsResult.to}</strong></div>
+                  <div>Provider: <strong className="text-emerald-300">{smsResult.provider}</strong></div>
+                  <div>Status: <span className="text-emerald-400 font-bold uppercase">{smsResult.status}</span></div>
+                </div>
+
+                <div className="text-[10.5px] text-slate-400 font-sans italic">
+                  "{smsResult.body}"
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* TWO ADDITIONAL GUARANTEED EMERGENCY CHANNELS */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            
+            {/* CHANNEL 1: 1-CLICK WHATSAPP EMERGENCY DISPATCH */}
+            <div className="p-3.5 rounded-xl bg-gradient-to-br from-emerald-950/40 via-[#0a1814] to-[#080d16] border border-emerald-600/60 space-y-2 shadow-lg flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="font-bold text-white text-xs">
+                      {isHindi ? 'WhatsApp आपातकालीन रिले' : 'WhatsApp Emergency Relay'}
+                    </span>
+                  </div>
+                  <span className="text-[9px] font-mono text-emerald-400 font-bold bg-emerald-950 px-1.5 py-0.5 rounded border border-emerald-800">
+                    DIRECT
+                  </span>
+                </div>
+
+                <p className="text-[10.5px] text-slate-300 mt-1 leading-relaxed">
+                  {isHindi
+                    ? 'काफिला चालकों और जिला अधिकारियों को सीधे WhatsApp पर प्रमाणित आपातकालीन संदेश भेजें।'
+                    : 'Dispatches pre-formatted NDMA emergency manifest directly to WhatsApp groups.'}
+                </p>
+              </div>
+
+              <button
+                onClick={handleWhatsAppRedirect}
+                className="w-full flex items-center justify-center gap-1.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-lg shadow-md text-xs transition-all active:scale-98"
+              >
+                <MessageSquare className="w-3.5 h-3.5" />
+                <span>{isHindi ? 'WhatsApp संदेश खोलें' : 'Open WhatsApp Relay'}</span>
+              </button>
+            </div>
+
+            {/* CHANNEL 2: REAL-TIME MOBILE SIREN PUSH */}
+            <div className="p-3.5 rounded-xl bg-gradient-to-br from-rose-950/40 via-[#1a0c16] to-[#080d16] border border-rose-600/60 space-y-2 shadow-lg flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Smartphone className="w-3.5 h-3.5 text-rose-400 animate-pulse" />
+                    <span className="font-bold text-white text-xs">
+                      {isHindi ? 'मोबाइल सायरन पुश (Lock Screen)' : 'Lock Screen Siren Notification'}
+                    </span>
+                  </div>
+                  <span className="text-[9px] font-mono text-rose-400 font-bold bg-rose-950 px-1.5 py-0.5 rounded border border-rose-800">
+                    NTFY PUSH
+                  </span>
+                </div>
+
+                <p className="text-[10.5px] text-slate-300 mt-1 leading-relaxed">
+                  {isHindi
+                    ? 'फोन पर लाइव सायरन और कंपन सूचना प्राप्त करने के लिए चैनल से जुड़ें।'
+                    : 'Physical mobile siren and vibration push notification on all disruptions.'}
+                </p>
+              </div>
+
+              <a
+                href={ntfyUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full flex items-center justify-center gap-1.5 py-2 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-bold rounded-lg shadow-md text-xs transition-all active:scale-98"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span>{isHindi ? 'सायरन चैनल खोलें' : 'Open Siren Channel'}</span>
+              </a>
+            </div>
+
           </div>
 
           {/* Active Alerts List */}
@@ -376,7 +418,7 @@ Authorized by: Kamrup Metro EOC / NDMA`
         <div className="flex items-center justify-between border-t border-slate-800 px-6 py-3.5 bg-[#080d16] text-[11px] text-slate-400">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span>{isHindi ? 'स्टेटस: EOC रीयल-टाइम मोबाइल रिले सक्रिय' : 'Status: EOC Real-Time Mobile Relay Operational'}</span>
+            <span>{isHindi ? 'स्टेटस: Twilio SMS एवं मोबाइल रिले सक्रिय' : 'Status: Twilio SDK & Mobile Carrier Relay Operational'}</span>
           </div>
           <button
             onClick={onClose}

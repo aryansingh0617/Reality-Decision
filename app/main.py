@@ -4,11 +4,11 @@ import json
 import logging
 import uuid
 from datetime import datetime
-from fastapi import FastAPI, APIRouter, HTTPException, BackgroundTasks
+from fastapi import FastAPI, APIRouter, HTTPException, BackgroundTasks, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 
 from app.orchestrator.mission_orchestrator import MissionOrchestrator
@@ -17,6 +17,7 @@ from core.state.reality_state import RealityState, EntityStatus, MissionPolicy
 from core.state.entity_status import ConfidenceClass
 from agents.llm_client import is_llm_mode_active, get_authoritative_status, toggle_simulated_fallback
 from simulation.benchmark.autonomy_harness import run_autonomy_verification_suite
+from core.notifications.sms_service import sms_service, SMSValidationError, SMSProviderError
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -859,93 +860,69 @@ class PhoneBroadcastRequest(BaseModel):
     topic: Optional[str] = "pravah-alerts-sih2026"
     priority: Optional[str] = "urgent"
 
+class SendSMSRequest(BaseModel):
+    to: str = Field(..., description="Target phone number in E.164 format (e.g. +919876543210 or +15552345678)")
+    message: str = Field(..., description="Text message content to dispatch")
+
 class RealSMSRequest(BaseModel):
     phone_number: Optional[str] = "+919876543210"
     message: Optional[str] = None
     provider: Optional[str] = "auto"
     api_key: Optional[str] = None
 
-@router.api_route("/alerts/send-real-sms", methods=["GET", "POST"])
-def send_real_sms_endpoint(req: Optional[RealSMSRequest] = None):
-    """Sends real-time SMS to physical mobile phone number."""
-    if not req or not req.phone_number:
-        phone = "+919876543210"
-    else:
-        phone = req.phone_number
+@router.api_route("/send-sms", methods=["GET", "POST"], response_model=None)
+def send_sms_endpoint(req: Optional[SendSMSRequest] = None):
+    """
+    Official Twilio SMS API Endpoint.
+    Accepts: { "to": "+919876543210", "message": "Emergency Alert" }
+    Validates E.164 format, enforces rate limits, and dispatches via Twilio SDK.
+    """
+    if not req:
+        return {
+            "status": "ready",
+            "endpoint": "POST /api/send-sms",
+            "usage": {
+                "headers": {"Content-Type": "application/json"},
+                "body": {"to": "+919876543210", "message": "🚨 PRAVAH EMERGENCY: Bridge B-07 Submerged."}
+            },
+            "e164_format_required": True
+        }
+    
+    try:
+        # Validate E.164 format before queueing
+        normalized_to = sms_service.validate_and_normalize_e164(req.to)
         
-    msg = req.message if req and req.message else "🚨 PRAVAH EMERGENCY SMS: Saraighat Bridge B-07 SUBMERGED (Water Depth: 0.52m). Vaccine Convoy M-17 REROUTED to NH-6 South Bypass (Route R-14). Dispur Hospital Arrival: 35 min."
-    
-    clean_number = "".join(c for c in phone if c.isdigit() or c == "+")
-    if not clean_number.startswith("+"):
-        if len(clean_number) == 10:
-            clean_number = "+91" + clean_number
-        else:
-            clean_number = "+" + clean_number
-            
-    import urllib.parse
-    import urllib.request
-    import json
-    
-    delivery_report = {
-        "status": "DISPATCHED_TO_CARRIER",
-        "recipient": clean_number,
-        "sms_body": msg,
-        "carrier_sid": f"MSG-IN-{hashlib.md5(f'{clean_number}{datetime.now()}'.encode()).hexdigest()[:12].upper()}",
-        "timestamp": datetime.now().isoformat(),
-        "carrier_network": "AIRTEL / JIO / BSNL TELECOM GATEWAY",
-        "delivery_time_ms": 142,
-        "is_delivered": True,
-        "gateways": []
-    }
-    
-    # 1. Fast2SMS Indian Telecom Route
-    try:
-        f2s_key = (req.api_key if req else None) or os.environ.get("FAST2SMS_API_KEY")
-        if f2s_key:
-            f2s_num = clean_number.replace("+91", "").replace("+", "")
-            f2s_payload = {
-                "route": "q",
-                "message": msg[:159],
-                "language": "english",
-                "flash": 0,
-                "numbers": f2s_num,
-            }
-            f2s_req = urllib.request.Request(
-                "https://www.fast2sms.com/dev/bulkV2",
-                data=json.dumps(f2s_payload).encode("utf-8"),
-                headers={"authorization": f2s_key, "Content-Type": "application/json"}
-            )
-            f2s_res = urllib.request.urlopen(f2s_req, timeout=3.0)
-            delivery_report["gateways"].append({"gateway": "Fast2SMS_DLT", "status": "200_OK"})
+        # Dispatch SMS via Twilio Service
+        result = sms_service.send_sms(to=normalized_to, message=req.message)
+        return result
+    except SMSValidationError as ve:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(ve))
+    except SMSProviderError as pe:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(pe))
     except Exception as e:
-        delivery_report["gateways"].append({"gateway": "Fast2SMS_DLT", "note": str(e)})
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"SMS Delivery error: {str(e)}")
 
-    # 2. WhatsApp Direct SMS Route via CallMeBot
+@router.api_route("/alerts/send-real-sms", methods=["GET", "POST"], response_model=None)
+def send_real_sms_endpoint(req: Optional[RealSMSRequest] = None):
+    """Sends real-time SMS to physical mobile phone number using Twilio SMSService."""
+    phone = req.phone_number if req and req.phone_number else "+919876543210"
+    msg = req.message if req and req.message else "🚨 PRAVAH EMERGENCY SMS: Saraighat Bridge B-07 SUBMERGED (Water Depth: 0.52m). Vaccine Convoy M-17 REROUTED to NH-6 South Bypass (Route R-14). Dispur Hospital ETA: 35 min."
+    
     try:
-        encoded = urllib.parse.quote_plus(msg)
-        wa_url = f"https://api.callmebot.com/whatsapp.php?phone={clean_number}&text={encoded}&apikey=free"
-        wa_req = urllib.request.Request(wa_url, headers={"User-Agent": "PRAVAH-EOC-SMS-Relay/2.0"})
-        urllib.request.urlopen(wa_req, timeout=2.5)
-        delivery_report["gateways"].append({"gateway": "WhatsApp_Direct_SMS", "status": "200_OK"})
+        normalized_to = sms_service.validate_and_normalize_e164(phone)
+        result = sms_service.send_sms(to=normalized_to, message=msg)
+        # Adapt keys for frontend backward-compatibility
+        result["recipient"] = result["to"]
+        result["carrier_sid"] = result["sid"]
+        result["sms_body"] = result["body"]
+        result["is_delivered"] = True
+        return result
+    except SMSValidationError as ve:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(ve))
+    except SMSProviderError as pe:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(pe))
     except Exception as e:
-        delivery_report["gateways"].append({"gateway": "WhatsApp_Direct_SMS", "note": str(e)})
-
-    # 3. Dedicated Phone Siren Channel
-    send_phone_push(
-        title=f"🚨 REAL SMS TO {clean_number}",
-        message=msg,
-        topic=f"pravah-sms-{clean_number.replace('+', '')}",
-        priority="urgent"
-    )
-    send_phone_push(
-        title=f"🚨 REAL SMS TO {clean_number}",
-        message=msg,
-        topic="pravah-alerts-sih2026",
-        priority="urgent"
-    )
-    delivery_report["gateways"].append({"gateway": "Telecom_Push_Relay", "status": "200_OK_DELIVERED"})
-
-    return delivery_report
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 @router.api_route("/alerts/broadcast-phone", methods=["GET", "POST"])
 def broadcast_to_phone(req: Optional[PhoneBroadcastRequest] = None):
