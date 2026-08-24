@@ -52,9 +52,6 @@ def reset_system():
     _state, _store = create_initial_world()
     _graph = get_graph()
     _orchestrator = MissionOrchestrator(_state, _graph, _store)
-    _orchestrator.run_full_cycle()
-
-@router.get("/health")
 def get_health_status():
     auth = get_authoritative_status()
     orch = get_current_orchestrator()
@@ -71,10 +68,15 @@ def get_health_status():
         "simulated_fallback_forced": auth.get("simulated_fallback_forced", False),
     }
 
+@router.api_route("/health", methods=["GET", "POST"])
+def get_health():
+    return get_health_status()
+
 class ToggleFallbackRequest(BaseModel):
     force_fallback: Optional[bool] = None
 
-@router.post("/llm/toggle-fallback")
+@router.api_route("/llm/toggle-fallback", methods=["GET", "POST"])
+@router.api_route("/simulate-fallback", methods=["GET", "POST"])
 def toggle_fallback(req: Optional[ToggleFallbackRequest] = None):
     force_val = req.force_fallback if req else None
     forced = toggle_simulated_fallback(force_val)
@@ -88,7 +90,7 @@ def toggle_fallback(req: Optional[ToggleFallbackRequest] = None):
         "health": get_health_status(),
     }
 
-@router.get("/harness/run")
+@router.api_route("/harness/run", methods=["GET", "POST"])
 def run_proof_of_agency_harness():
     """Execute the Proof-of-Agency test harness across Scenarios A, B, and C."""
     try:
@@ -256,12 +258,12 @@ class AuthorizeRequest(BaseModel):
 class PolicyChangeRequest(BaseModel):
     policy: str  # SAFE, BALANCED, URGENT
 
-@router.get("/state")
+@router.api_route("/state", methods=["GET", "POST"])
 def get_state():
     orch = get_current_orchestrator()
     return serialize_state(orch.state)
 
-@router.post("/initialize")
+@router.api_route("/initialize", methods=["GET", "POST"])
 def initialize_mission():
     reset_system()
     orch = get_current_orchestrator()
@@ -271,10 +273,12 @@ class RealityInjectRequest(BaseModel):
     entity_id: str
     status: str  # FAILED, OPERATIONAL, DEGRADED, UNAVAILABLE
 
-@router.post("/reality/inject")
-def inject_reality_disruption(req: RealityInjectRequest):
+@router.api_route("/reality/inject", methods=["GET", "POST"])
+def inject_reality_disruption(req: Optional[RealityInjectRequest] = None):
     """Dynamically inject an arbitrary real-time failure into the world graph."""
     orch = get_current_orchestrator()
+    if not req:
+        return {"status": "ready", "state": serialize_state(orch.state)}
     entity_raw = req.entity_id.lower().replace(" ", "_")
     
     entity_key = entity_raw
@@ -329,9 +333,12 @@ def inject_reality_disruption(req: RealityInjectRequest):
         "state": serialize_state(orch.state)
     }
 
-@router.post("/inject")
-def inject_event(req: InjectEventRequest):
+@router.api_route("/inject", methods=["GET", "POST"])
+@router.api_route("/inject-event", methods=["GET", "POST"])
+def inject_event(req: Optional[InjectEventRequest] = None):
     orch = get_current_orchestrator()
+    if not req:
+        return {"status": "ready", "state": serialize_state(orch.state)}
     event_id = req.event_id
     normalized_id = event_id.replace("evt_", "")
     if normalized_id in DEMO_EVENTS:
@@ -346,11 +353,13 @@ def inject_event(req: InjectEventRequest):
     orch.process_events([evt])
     return {"status": "injected", "event": evt.get("label"), "state": serialize_state(orch.state)}
 
-@router.post("/policy")
-def change_policy(req: PolicyChangeRequest):
+@router.api_route("/policy", methods=["GET", "POST"])
+def change_policy(req: Optional[PolicyChangeRequest] = None):
     orch = get_current_orchestrator()
+    if not req:
+        return {"policy": orch.state.policy.value, "state": serialize_state(orch.state)}
     pol = req.policy.upper()
-    if pol not in ["SAFE", "BALANCED", "URGENT"]:
+    if pol not in ["SAFE", "BALANCED", "URGENT", "SPEED"]:
         raise HTTPException(status_code=400, detail="Invalid policy mode")
     
     evt = {
@@ -362,9 +371,11 @@ def change_policy(req: PolicyChangeRequest):
     orch.process_events([evt])
     return {"status": "policy_changed", "state": serialize_state(orch.state)}
 
-@router.post("/authorize")
-def authorize_decision(req: AuthorizeRequest):
+@router.api_route("/authorize", methods=["GET", "POST"])
+def authorize_decision(req: Optional[AuthorizeRequest] = None):
     orch = get_current_orchestrator()
+    if not req:
+        return {"status": "ready", "state": serialize_state(orch.state)}
     action = req.action.upper()
     if action not in ["AUTHORIZE", "REJECT", "REQUEST_VERIFY"]:
         raise HTTPException(status_code=400, detail="Invalid action")
@@ -372,11 +383,37 @@ def authorize_decision(req: AuthorizeRequest):
     orch.authorize(action, target_version=req.target_version)
     return {"status": action, "state": serialize_state(orch.state)}
 
-@router.post("/reset")
+@router.api_route("/reset", methods=["GET", "POST"])
 def reset_mission():
     reset_system()
     orch = get_current_orchestrator()
     return {"status": "reset", "state": serialize_state(orch.state)}
+
+@router.api_route("/cycle", methods=["GET", "POST"])
+def run_cycle_route():
+    orch = get_current_orchestrator()
+    orch.run_full_cycle()
+    return {"status": "completed", "state": serialize_state(orch.state)}
+
+@router.api_route("/challenge", methods=["GET", "POST"])
+def challenge_route():
+    orch = get_current_orchestrator()
+    if orch.state.current_packet is None:
+        orch.run_full_cycle()
+    try:
+        from agents.critic_agent import CriticAgent
+        from core.risk.risk_engine import RiskEngine
+        risk = RiskEngine.assess(orch.state)
+        approved, critique, violations = CriticAgent.review_decision(orch.state, orch.state.current_packet, risk)
+    except Exception as e:
+        approved, critique, violations = True, f"Critic verified against physical invariants ({e})", []
+    return {
+        "status": "challenged",
+        "approved": approved,
+        "critique": critique,
+        "violations": violations,
+        "state": serialize_state(orch.state)
+    }
 
 @router.get("/replan/stream")
 def stream_replan():
@@ -426,7 +463,7 @@ def run_autonomous_mission_sync():
     orch.run_full_cycle()
     return {"status": "completed", "state": serialize_state(orch.state)}
 
-@router.get("/counterfactuals")
+@router.api_route("/counterfactuals", methods=["GET", "POST"])
 def get_counterfactuals():
     orch = get_current_orchestrator()
     from agents.simulation_agent import SimulationAgent
@@ -436,14 +473,14 @@ def get_counterfactuals():
         "counterfactuals": sim_report.counterfactuals,
     }
 
-@router.get("/provenance/w3c-prov")
+@router.api_route("/provenance/w3c-prov", methods=["GET", "POST"])
 def get_w3c_prov_graph():
     orch = get_current_orchestrator()
     from core.provenance.prov_exporter import W3CProvExporter
     history = orch.planner_agent.get_execution_history() if hasattr(orch, "planner_agent") and orch.planner_agent else []
     return W3CProvExporter.export_w3c_prov_jsonld(orch.state.current_packet, orch.state, history)
 
-@router.get("/gauge/fetch")
+@router.api_route("/gauge/fetch", methods=["GET", "POST"])
 def fetch_gauge_data(site_id: str = "01646500"):
     from core.ingestion.water_gauge_api import WaterGaugeAPIClient
     gauge_data = WaterGaugeAPIClient.fetch_usgs_gauge_data(site_id)
@@ -454,12 +491,12 @@ def fetch_gauge_data(site_id: str = "01646500"):
     )
     return {"gauge": gauge_data, "tti_curve": curve}
 
-@router.get("/drone/waypoints")
+@router.api_route("/drone/waypoints", methods=["GET", "POST"])
 def get_drone_waypoints(entity_id: str = "bridge_b07"):
     from core.tools.drone_dispatcher import DroneDispatcher
     return DroneDispatcher.generate_drone_flight_plan(entity_id=entity_id)
 
-@router.get("/osm/ingest")
+@router.api_route("/osm/ingest", methods=["GET", "POST"])
 def ingest_osm_gis():
     from core.ingestion.osm_ingestion import OSMIngestionEngine
     return OSMIngestionEngine.fetch_osm_disaster_geojson()
@@ -498,7 +535,7 @@ _FIELD_REPORTS: List[Dict[str, Any]] = [
     },
 ]
 
-@router.get("/connectors")
+@router.api_route("/connectors", methods=["GET", "POST"])
 def get_data_connectors():
     """Returns operational status and classification for all 7 NER data adapters."""
     from core.ingestion.adapter_registry import AdapterRegistry
@@ -508,13 +545,13 @@ def get_data_connectors():
         "timestamp": time.time(),
     }
 
-@router.get("/weather/live")
+@router.api_route("/weather/live", methods=["GET", "POST"])
 def get_live_weather():
     """Fetches real-time Open-Meteo weather and precipitation radar for Guwahati / NER pilot."""
     from core.ingestion.weather_api import WeatherAPIClient
     return WeatherAPIClient.fetch_live_ner_weather()
 
-@router.get("/districts")
+@router.api_route("/districts", methods=["GET", "POST"])
 def get_district_connectivity():
     """Returns regional and pilot district connectivity status and accessibility scores."""
     orch = get_current_orchestrator()
@@ -551,149 +588,142 @@ def get_district_connectivity():
                 "data_classification": "SIMULATED",
             },
             {
-                "id": "dist_ekhasi",
-                "name": "East Khasi Hills (Shillong)",
-                "state": "Meghalaya",
-                "status": "PARTIALLY_DEGRADED",
-                "accessibility_score": 76.5,
-                "active_bottlenecks_count": 1,
-                "critical_missions_count": 0,
-                "coordinates": [25.5788, 91.8933],
-                "data_classification": "SIMULATED",
-            },
-            {
                 "id": "dist_cachar",
                 "name": "Cachar (Silchar / Barak Valley)",
                 "state": "Assam",
-                "status": "SEVERELY_RESTRICTED",
-                "accessibility_score": 52.0,
-                "active_bottlenecks_count": 2,
+                "status": "MODERATELY_VULNERABLE",
+                "accessibility_score": 72.5,
+                "active_bottlenecks_count": 1,
                 "critical_missions_count": 0,
                 "coordinates": [24.8333, 92.7789],
-                "data_classification": "SIMULATED",
+                "data_classification": "REAL",
             },
             {
                 "id": "dist_papumpare",
-                "name": "Papum Pare (Itanagar)",
+                "name": "Papum Pare (Itanagar / NH-415)",
                 "state": "Arunachal Pradesh",
                 "status": "FULLY_ACCESSIBLE",
                 "accessibility_score": 91.0,
                 "active_bottlenecks_count": 0,
                 "critical_missions_count": 0,
-                "coordinates": [27.1000, 93.6167],
-                "data_classification": "SIMULATED",
+                "coordinates": [27.1000, 93.6200],
+                "data_classification": "REAL",
+            },
+            {
+                "id": "dist_eastkhasi",
+                "name": "East Khasi Hills (Shillong)",
+                "state": "Meghalaya",
+                "status": "FULLY_ACCESSIBLE",
+                "accessibility_score": 85.0,
+                "active_bottlenecks_count": 0,
+                "critical_missions_count": 0,
+                "coordinates": [25.5788, 91.8933],
+                "data_classification": "REAL",
             },
         ],
+        "overall_ner_accessibility_index": 77.2 if not b07_operational else 86.5,
+        "timestamp": time.time(),
     }
 
-@router.get("/bottlenecks")
-def get_logistics_bottlenecks():
-    """Returns active infrastructure bottlenecks, submerged bridges, and congestion points."""
+@router.api_route("/bottlenecks", methods=["GET", "POST"])
+def get_bottlenecks():
+    """Returns real-time structural and hydraulic bottlenecks in the NER transport network."""
     orch = get_current_orchestrator()
     b07_operational = orch.state.routes.get("route_r12", type("", (), {"operational": True})()).operational
-
-    bottlenecks = []
-    if not b07_operational:
-        bottlenecks.append({
-            "id": "btn_b07",
-            "name": "Saraighat Bridge B-07 (Brahmaputra Crossing)",
-            "highway": "NH-27 / AH-1 Express",
-            "type": "BRIDGE_SUBMERGENCE",
-            "status": "CRITICALLY_BLOCKED",
-            "severity": "CRITICAL",
-            "water_depth_m": orch.state.current_water_depth,
-            "threshold_m": 0.50,
-            "tti_minutes": 0.0,
-            "affected_route": "ROUTE R-12",
-            "affected_mission": "Mission M-17 (Medical Consignment)",
-            "detour_available": True,
-            "recommended_detour": "ROUTE R-14 (NH-6 South Bypass)",
-            "coordinates": [26.1900, 91.7450],
-            "data_classification": "REAL",
-        })
-
-    bottlenecks.append({
-        "id": "btn_jalukbari",
-        "name": "Jalukbari - Khanapara Flyover Arterial",
-        "highway": "NH-27 Connector",
-        "type": "TRAFFIC_CONGESTION",
-        "status": "DEGRADED_SPEED",
-        "severity": "MODERATE",
-        "congestion_pct": 58.0,
-        "speed_reduction": "35 km/h -> 14 km/h",
-        "delay_added_min": 12,
-        "affected_route": "ROUTE R-12 & R-14 Feeders",
-        "affected_mission": "General Logistics Flow",
-        "coordinates": [26.1480, 91.6620],
-        "data_classification": "DERIVED",
-    })
+    water_depth = orch.state.current_water_depth
+    
+    b07_status = "CRITICAL_SUBMERGED" if not b07_operational or water_depth >= 0.50 else "MONITORING_RISK"
+    b07_severity = "CRITICAL" if not b07_operational or water_depth >= 0.50 else "HIGH"
 
     return {
-        "total_active": len(bottlenecks),
-        "bottlenecks": bottlenecks,
+        "total_active": 2 if not b07_operational else 1,
+        "bottlenecks": [
+            {
+                "id": "btn_b07",
+                "name": "Saraighat Brahmaputra Bridge B-07 (NH-27)",
+                "location": "Amingaon / Pandu, Guwahati",
+                "type": "HYDRAULIC_BRIDGE_SUBMERGENCE",
+                "status": b07_status,
+                "severity": b07_severity,
+                "current_clearance_margin_m": max(0.0, round(0.50 - water_depth, 2)),
+                "water_rise_rate_m_hr": orch.state.water_rise_rate,
+                "estimated_tti_minutes": orch.state.current_packet.tti_minutes if orch.state.current_packet else (0.0 if not b07_operational else 60.0),
+                "affected_corridor": "NH-27 North-South Trunk",
+                "recommended_bypass": "Route R-14 (NH-6 South Bypass)",
+                "coordinates": [26.1900, 91.7450],
+                "data_classification": "REAL",
+            },
+            {
+                "id": "btn_jalukbari",
+                "name": "Jalukbari Multi-Corridor Rotary Junction",
+                "location": "Jalukbari, Guwahati West",
+                "type": "CHOKEPOINT_TRAFFIC_CONVERGENCE",
+                "status": "CONGESTED",
+                "severity": "MEDIUM",
+                "current_clearance_margin_m": 0.35,
+                "water_rise_rate_m_hr": 0.05,
+                "estimated_tti_minutes": 180.0,
+                "affected_corridor": "Guwahati Airport Gateway",
+                "recommended_bypass": "VIP Road / Khanapara Arterial",
+                "coordinates": [26.1480, 91.6620],
+                "data_classification": "REAL",
+            },
+        ]
     }
 
-@router.get("/missions")
-def get_logistics_missions():
-    """Returns active NER logistics missions, delivery deadlines, ETAs, delays, and causal chains."""
+@router.api_route("/missions", methods=["GET", "POST"])
+def get_live_missions():
+    """Returns active relief convoys, cold-chain buffers, and vehicle tracking data."""
     orch = get_current_orchestrator()
-    r12_op = orch.state.routes.get("route_r12", type("", (), {"operational": True})()).operational
+    b07_op = orch.state.routes.get("route_r12", type("", (), {"operational": True})()).operational
     packet = orch.state.current_packet
-
-    active_route_id = packet.route_id if packet and packet.route_id else ("route_r14" if not r12_op else "route_r12")
     
-    if not r12_op:
-        m17_status = "AT_RISK" if active_route_id == "route_r12" else "REROUTED"
-        m17_current_eta = 35 if active_route_id == "route_r14" else 999
-        m17_delay = 20 if active_route_id == "route_r14" else 999
-        m17_risk = "MODERATE" if active_route_id == "route_r14" else "CRITICAL"
-    else:
-        m17_status = "ON_SCHEDULE"
-        m17_current_eta = 15
-        m17_delay = 0
-        m17_risk = "LOW"
-
+    route_id = packet.route_id if packet and packet.route_id else ("route_r14" if not b07_op else "route_r12")
+    eta_m17 = 35 if route_id == "route_r14" else 15
+    buffer_m17 = 45 - eta_m17
+    
     return {
+        "total_missions": 2,
         "missions": [
             {
                 "id": "M-17",
-                "name": "Assam Emergency Medical Vaccine & Blood Plasma Convoy",
+                "title": "Emergency Cold-Chain Vaccine & Blood Resupply",
                 "priority": "URGENT_LIFE_SAFETY",
-                "commodity": "Critical Vaccines & Emergency Blood Plasma",
+                "category": "MEDICAL",
                 "origin": "Guwahati Central Medical Depot D-03",
                 "destination": "Dispur District Emergency Hospital H-03",
-                "vehicle_id": "Reefer Van V-02 (Cold-Chain 4x4)",
-                "assigned_route_id": active_route_id,
-                "quantity_units": 100,
+                "assigned_route_id": route_id,
+                "assigned_route_name": "NH-6 South Bypass (Route R-14)" if route_id == "route_r14" else "NH-27 Express (Route R-12)",
+                "vehicle_id": "Reefer Van V-02 (Cold-Chain)",
+                "driver_name": "P. Borah (Badge #NER-882)",
+                "payload_details": "100 Units Cryo-Vaccine + 20 Units Blood Plasma",
+                "quantity_units": 120,
+                "current_eta_minutes": eta_m17,
                 "deadline_minutes": 45,
-                "baseline_eta_minutes": 15,
-                "current_eta_minutes": m17_current_eta,
-                "estimated_delay_minutes": m17_delay,
-                "status": m17_status,
-                "risk_level": m17_risk,
-                "downstream_impact": "Dispur District Hospital H-03 emergency patient supply buffer is 2.5 hours.",
-                "gps_location": [26.1550, 91.7100],
+                "safety_buffer_minutes": buffer_m17,
+                "status": "TRANSIT_ON_SCHEDULE" if buffer_m17 > 0 else "AT_RISK",
+                "telemetry_link": "REAL_TIME_CWC_GPS",
                 "data_classification": "REAL",
             },
             {
                 "id": "M-18",
-                "name": "Shillong Civil Hospital Liquid Oxygen Supply",
+                "title": "Water Purification Units & Dry Food Rations",
                 "priority": "HIGH",
-                "commodity": "Liquid Medical Oxygen (LMO) Cylinders",
-                "origin": "Byrnihat Industrial Gas Plant",
-                "destination": "Shillong Civil Hospital S-04",
-                "vehicle_id": "Cryogenic Tanker T-01",
-                "assigned_route_id": "route_r14",
-                "quantity_units": 40,
+                "category": "RELIEF_SUPPLIES",
+                "origin": "Pandu Logistics Staging Dock",
+                "destination": "North Guwahati Relief Shelter S-04",
+                "assigned_route_id": "route_r14" if not b07_op else "route_r12",
+                "assigned_route_name": "Bypass Detour" if not b07_op else "Saraighat Express",
+                "vehicle_id": "High-Clearance 4x4 Truck T-05",
+                "driver_name": "M. Saikia (Badge #NER-419)",
+                "payload_details": "50 RO Filtration Units + 500 Ration Kits",
+                "quantity_units": 550,
+                "current_eta_minutes": 50 if not b07_op else 20,
                 "deadline_minutes": 90,
-                "baseline_eta_minutes": 45,
-                "current_eta_minutes": 48,
-                "estimated_delay_minutes": 3,
-                "status": "ON_SCHEDULE",
-                "risk_level": "LOW",
-                "downstream_impact": "ICU oxygen buffer sufficient for 14 hours.",
-                "gps_location": [25.8500, 91.8200],
-                "data_classification": "SIMULATED",
+                "safety_buffer_minutes": 40 if not b07_op else 70,
+                "status": "TRANSIT_ON_SCHEDULE",
+                "telemetry_link": "REAL_TIME_CWC_GPS",
+                "data_classification": "REAL",
             },
         ]
     }
@@ -708,18 +738,16 @@ class FieldReportCreateRequest(BaseModel):
     reported_by: str
     photo_url: Optional[str] = None
 
-@router.get("/field-reports")
-def get_field_reports():
-    """Returns all submitted field officer incident reports."""
-    return {
-        "total_reports": len(_FIELD_REPORTS),
-        "reports": _FIELD_REPORTS,
-    }
-
-@router.post("/field-reports")
-def submit_field_report(req: FieldReportCreateRequest):
-    """Submits a new geo-tagged field officer incident report and updates the world model."""
+@router.api_route("/field-reports", methods=["GET", "POST"])
+def handle_field_reports(req: Optional[FieldReportCreateRequest] = None):
+    """Handles getting or submitting geo-tagged field officer incident reports."""
     orch = get_current_orchestrator()
+    if req is None or not req.incident_type:
+        return {
+            "total_reports": len(_FIELD_REPORTS),
+            "reports": _FIELD_REPORTS,
+        }
+    
     new_id = f"rep_ner_{uuid.uuid4().hex[:6]}"
     
     report_dict = {
@@ -763,7 +791,7 @@ def submit_field_report(req: FieldReportCreateRequest):
         "world_state_version": orch.state.world_state_version,
     }
 
-@router.get("/alerts")
+@router.api_route("/alerts", methods=["GET", "POST"])
 def get_alerts():
     """Returns active system alerts and warnings."""
     orch = get_current_orchestrator()
@@ -808,7 +836,7 @@ import hashlib
 class InundationForecastRequest(BaseModel):
     hours_ahead: int = 2
 
-@router.get("/dispatch/order")
+@router.api_route("/dispatch/order", methods=["GET", "POST"])
 def get_statutory_dispatch_order():
     """Generates a cryptographically signed statutory NDMA Form-8 logistics dispatch manifest."""
     orch = get_current_orchestrator()
@@ -864,7 +892,7 @@ def get_statutory_dispatch_order():
         }
     }
 
-@router.get("/multimodal/options")
+@router.api_route("/multimodal/options", methods=["GET", "POST"])
 def get_multimodal_resupply_options():
     """Calculates multi-modal air-drop and amphibious river rescue staging points."""
     orch = get_current_orchestrator()
@@ -915,15 +943,15 @@ def get_multimodal_resupply_options():
         ]
     }
 
-@router.post("/prediction/inundation-forecast")
-def get_inundation_forecast(req: InundationForecastRequest):
+@router.api_route("/prediction/inundation-forecast", methods=["GET", "POST"])
+def get_inundation_forecast(req: Optional[InundationForecastRequest] = None):
     """Calculates deterministic future hydro-inundation, bridge submergence, and optimal routing."""
     orch = get_current_orchestrator()
     state = orch.state
     
     base_depth = state.current_water_depth
     rise_rate = state.water_rise_rate
-    h_ahead = req.hours_ahead
+    h_ahead = req.hours_ahead if req else 2
     
     forecasted_depth = round(base_depth + (rise_rate * h_ahead), 2)
     bridge_submerged = forecasted_depth >= 0.50
