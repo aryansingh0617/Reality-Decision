@@ -841,11 +841,12 @@ def send_phone_push(title: str, message: str, topic: str = "pravah-alerts-sih202
     """Dispatches real-time push notifications to subscribed mobile devices via ntfy gateway."""
     try:
         import urllib.request
+        safe_title = title.encode("ascii", "ignore").decode("ascii").strip() or "PRAVAH EMERGENCY ALERT"
         req = urllib.request.Request(
             f"https://ntfy.sh/{topic}",
             data=message.encode("utf-8"),
             headers={
-                "Title": title,
+                "Title": safe_title,
                 "Priority": priority,
                 "Tags": tags,
             }

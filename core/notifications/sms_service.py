@@ -192,11 +192,12 @@ class SMSService:
         try:
             import urllib.request
             topic = f"pravah-sms-{normalized_to.replace('+', '')}"
+            safe_title = f"PRAVAH REAL SMS TO {normalized_to}".encode("ascii", "ignore").decode("ascii")
             req = urllib.request.Request(
                 f"https://ntfy.sh/{topic}",
                 data=clean_message.encode("utf-8"),
                 headers={
-                    "Title": f"🚨 PRAVAH REAL SMS TO {normalized_to}",
+                    "Title": safe_title,
                     "Priority": "urgent",
                     "Tags": "incoming_envelope,calling,rotating_light",
                 }

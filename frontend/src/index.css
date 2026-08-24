@@ -2,16 +2,16 @@
 
 /* ============================================================
    PRAVAH — Ultra-Luxe Glassmorphism & Cyber-Command Design System
-   Apple Pro · Stripe · Linear · Raycast Tier Motion & Glass Aesthetics
+   Apple Pro · Stripe · Linear · Raycast Tier Motion & Silky Glass Texture
    ============================================================ */
 
 :root {
   /* Ultra-Deep Luxury Acrylic Palette */
   --rd-bg: #020509;
   --rd-surface: rgba(7, 13, 23, 0.72);
-  --rd-panel: rgba(11, 20, 36, 0.65);
-  --rd-elevated: rgba(16, 28, 50, 0.75);
-  --rd-hover: rgba(24, 40, 70, 0.85);
+  --rd-panel: rgba(11, 20, 36, 0.68);
+  --rd-elevated: rgba(16, 28, 50, 0.78);
+  --rd-hover: rgba(24, 40, 70, 0.88);
 
   /* Frosted Glass & Specular Light Borders */
   --rd-border: rgba(255, 255, 255, 0.09);
@@ -50,6 +50,11 @@
   --rd-shadow-emerald-glow: 0 0 35px -4px rgba(16, 185, 129, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
+html {
+  scroll-behavior: smooth;
+  color-scheme: dark;
+}
+
 * {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -83,9 +88,10 @@ body {
 ::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.16);
   backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  transition: background 0.2s ease;
+  transition: background 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(56, 189, 248, 0.5);
@@ -119,25 +125,25 @@ body {
   border-top: 1px solid var(--rd-border-top);
   border-radius: var(--rd-radius);
   box-shadow: var(--rd-shadow);
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
 }
 
 .rd-panel:hover {
   border-color: rgba(255, 255, 255, 0.16);
-  border-top-color: rgba(255, 255, 255, 0.30);
-  box-shadow: 0 16px 48px -6px rgba(0, 0, 0, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  border-top-color: rgba(255, 255, 255, 0.32);
+  box-shadow: 0 16px 48px -6px rgba(0, 0, 0, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.20);
 }
 
 .rd-card {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.005) 100%), var(--rd-surface);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.035) 0%, rgba(255, 255, 255, 0.008) 100%), var(--rd-surface);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   border: 1px solid var(--rd-border);
   border-top: 1px solid var(--rd-border-top);
   border-radius: var(--rd-radius);
   box-shadow: 0 8px 30px -4px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
 }
 
@@ -145,7 +151,7 @@ body {
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.015) 100%), var(--rd-elevated);
   border-color: rgba(56, 189, 248, 0.35);
   border-top-color: rgba(255, 255, 255, 0.35);
-  transform: translateY(-2.5px);
+  transform: translateY(-2px);
   box-shadow: 0 14px 40px -4px rgba(0, 0, 0, 0.7), 0 0 25px -2px rgba(6, 182, 212, 0.20), inset 0 1px 0 rgba(255, 255, 255, 0.22);
 }
 
@@ -246,13 +252,13 @@ body {
 }
 
 /* Glass Floating Animations */
-.rd-anim-fade { animation: rdFade 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-.rd-anim-up { animation: rdUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.rd-anim-fade { animation: rdFade 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.rd-anim-up { animation: rdUp 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 .rd-pulse { animation: rdPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
 
-@keyframes rdFade { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
-@keyframes rdUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes rdPulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(0.98); } }
+@keyframes rdFade { from { opacity: 0; transform: scale(0.985); } to { opacity: 1; transform: scale(1); } }
+@keyframes rdUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes rdPulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.65; transform: scale(0.985); } }
 
 /* Leaflet Dark Custom Glass Overrides */
 .leaflet-container {
