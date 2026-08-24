@@ -2,10 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { FileJson, Download, Cpu, UserCheck, Layers, RefreshCw } from 'lucide-react';
 import { fetchW3CProvGraph, DEFAULT_PROV_GRAPH } from '../api';
 import { SectionLabel } from './ui';
+import { TRANSLATIONS, type Language } from '../i18n';
 
-export const W3CProvView: React.FC = () => {
+export const W3CProvView: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
   const [graph, setGraph] = useState<any | null>(DEFAULT_PROV_GRAPH);
   const [loading, setLoading] = useState(false);
+  const t = TRANSLATIONS[lang];
+  const isHindi = lang === 'hi';
 
   const load = async () => {
     setLoading(true);
@@ -29,7 +32,7 @@ export const W3CProvView: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `reality_decision_audit_${Date.now()}.jsonld`;
+    a.download = `pravah_w3c_prov_audit_${Date.now()}.jsonld`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -38,21 +41,27 @@ export const W3CProvView: React.FC = () => {
   const count = (fn: (n: any) => boolean) => g.filter(fn).length;
 
   return (
-    <div className="rd-panel flex h-full flex-col overflow-hidden">
-      <div className="flex shrink-0 items-center justify-between border-b border-[var(--rd-border)] px-5 py-3.5">
+    <div className="rd-panel flex h-full flex-col overflow-hidden bg-[var(--rd-surface)] border border-[var(--rd-border)] rounded-xl shadow-lg">
+      <div className="flex shrink-0 items-center justify-between border-b border-[var(--rd-border)] px-5 py-3.5 bg-[var(--rd-surface)]">
         <div className="flex items-center gap-2.5">
-          <FileJson className="h-4 w-4" style={{ color: 'var(--rd-accent)' }} />
+          <FileJson className="h-4 w-4 text-cyan-400" />
           <div>
-            <div className="t-h3" style={{ color: 'var(--rd-text)' }}>Decision provenance</div>
-            <div className="t-caption">A verifiable, standards-based audit trail (W3C PROV-O)</div>
+            <div className="t-h3 text-white font-bold">{t.tabW3CProv}</div>
+            <div className="text-xs text-slate-400 font-mono">
+              {isHindi ? 'वैधानिक W3C PROV-O क्रिप्टोग्राफिक निर्णय साक्ष्य ऑडिट ट्रेल' : 'Verifiable, standards-based audit trail (W3C PROV-O)'}
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-2.5">
-          <button onClick={load} disabled={loading} className="rd-btn rd-btn-ghost">
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'rd-spin-slow' : ''}`} /> Refresh
+          <button
+            onClick={load}
+            disabled={loading}
+            className="px-3 py-1.5 rounded-lg text-xs font-mono font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center gap-1.5 transition-colors"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> {isHindi ? 'रिफ्रेश' : 'Refresh'}
           </button>
-          <button onClick={download} disabled={!graph} className="rd-btn rd-btn-primary">
-            <Download className="h-3.5 w-3.5" /> Export JSON-LD
+          <button onClick={download} disabled={!graph} className="rd-btn rd-btn-primary text-xs font-mono">
+            <Download className="h-3.5 w-3.5" /> {isHindi ? 'JSON-LD निर्यात करें' : 'Export JSON-LD'}
           </button>
         </div>
       </div>
@@ -62,35 +71,35 @@ export const W3CProvView: React.FC = () => {
           <>
             <div className="grid grid-cols-3 gap-3">
               {[
-                { icon: Layers, label: 'Entities', color: 'var(--rd-accent)', n: count((n) => n['@type'] === 'prov:Entity') },
-                { icon: UserCheck, label: 'Agents', color: 'var(--rd-success)', n: count((n) => Array.isArray(n['@type']) && n['@type'].includes('prov:Agent')) },
-                { icon: Cpu, label: 'Activities', color: 'var(--rd-warn)', n: count((n) => n['@type'] === 'prov:Activity') },
+                { icon: Layers, label: isHindi ? 'इकाइयां (Entities)' : 'Entities', color: '#38bdf8', n: count((n) => n['@type'] === 'prov:Entity') },
+                { icon: UserCheck, label: isHindi ? 'एजेंट (Agents)' : 'Agents', color: '#10b981', n: count((n) => Array.isArray(n['@type']) && n['@type'].includes('prov:Agent')) },
+                { icon: Cpu, label: isHindi ? 'गतिविधियां (Activities)' : 'Activities', color: '#f59e0b', n: count((n) => n['@type'] === 'prov:Activity') },
               ].map((m) => {
                 const Icon = m.icon;
                 return (
-                  <div key={m.label} className="rd-card px-4 py-3">
+                  <div key={m.label} className="rd-card px-4 py-3 bg-[var(--rd-panel)] border border-[var(--rd-border)] rounded-xl">
                     <div className="flex items-center gap-2">
                       <Icon className="h-3.5 w-3.5" style={{ color: m.color }} />
-                      <SectionLabel>{m.label}</SectionLabel>
+                      <SectionLabel className="text-slate-300 font-bold">{m.label}</SectionLabel>
                     </div>
-                    <div className="t-num mt-1.5 text-[20px] font-semibold" style={{ color: 'var(--rd-text)' }}>{m.n}</div>
+                    <div className="t-num mt-1 text-[22px] font-bold text-white">{m.n}</div>
                   </div>
                 );
               })}
             </div>
 
             <div>
-              <SectionLabel className="mb-2">Raw audit graph</SectionLabel>
-              <div className="overflow-x-auto rounded-lg p-4" style={{ background: 'var(--rd-bg)', border: '1px solid var(--rd-border)' }}>
-                <pre className="leading-relaxed" style={{ fontFamily: 'var(--rd-mono)', fontSize: 11.5, color: 'var(--rd-text-2)' }}>
-                  {JSON.stringify(graph, null, 2)}
-                </pre>
+              <SectionLabel className="mb-2 text-slate-400 font-bold">
+                {isHindi ? 'W3C PROV-O JSON-LD स्रोत ग्राफ' : 'Raw W3C PROV-O JSON-LD Graph'}
+              </SectionLabel>
+              <div className="overflow-x-auto rounded-xl p-4 bg-[#070b12] border border-slate-800 font-mono text-[11px] text-slate-300 leading-relaxed max-h-[480px]">
+                <pre>{JSON.stringify(graph, null, 2)}</pre>
               </div>
             </div>
           </>
         ) : (
           <div className="flex h-full items-center justify-center">
-            <div className="t-caption">Loading provenance graph…</div>
+            <div className="text-xs text-slate-400 font-mono">{isHindi ? 'डेटा लोड हो रहा है…' : 'Loading provenance graph…'}</div>
           </div>
         )}
       </div>

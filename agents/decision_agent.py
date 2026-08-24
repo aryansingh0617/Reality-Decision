@@ -102,6 +102,12 @@ class DecisionAgent:
                 packet.escalation_required = data.get("escalation_required", False)
                 packet.assumptions = data.get("assumptions", [])
                 packet.provenance = ["DecisionAgent (LLM Mode)", f"Policy:{state.policy.value}"]
+                
+                from core.prediction.tti_engine import TTIEngine
+                target_route = packet.route_id or "route_r12"
+                tti_eval = TTIEngine.evaluate_route_tti(state, target_route)
+                packet.tti_minutes = tti_eval.get("tti_minutes", 60.0)
+                packet.fragility = tti_eval.get("fragility", "STABLE")
                 return packet
 
         if risk.capacity_gap or confirmed == 0:
@@ -126,6 +132,11 @@ class DecisionAgent:
         alt_id = scores[1][0] if len(scores) > 1 else None
         best_route = state.routes[best_id]
         best_assessment = risk.routes[best_id]
+
+        from core.prediction.tti_engine import TTIEngine
+        tti_eval = TTIEngine.evaluate_route_tti(state, best_id)
+        packet.tti_minutes = tti_eval.get("tti_minutes", 60.0)
+        packet.fragility = tti_eval.get("fragility", "STABLE")
 
         packet.route_id = best_id
         packet.recommendation = f"{best_route.name} — {best_route.label}"

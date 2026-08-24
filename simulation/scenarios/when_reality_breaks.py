@@ -57,7 +57,8 @@ def create_initial_world() -> tuple[RealityState, EvidenceStore]:
     }
 
     state.vehicles = {
-        "vehicle_v02": Vehicle(id="vehicle_v02", name="Rescue Truck V-02", capacity=10, available=True),
+        "vehicle_v01": Vehicle(id="vehicle_v01", name="Heavy Logistics Truck V-01", capacity=15, available=True),
+        "vehicle_v02": Vehicle(id="vehicle_v02", name="Vaccine Reefer Van V-02", capacity=15, available=True),
     }
 
     state.shelters = {

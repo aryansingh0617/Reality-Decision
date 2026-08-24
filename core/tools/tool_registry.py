@@ -1,9 +1,10 @@
-"""Tool Registry — Typed, deterministic tools executable by autonomous reasoning agents."""
+"""Tool Registry — Typed, deterministic tools executable by PRAVAH autonomous reasoning agents."""
 
 from __future__ import annotations
 import time
 import uuid
 import json
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -13,14 +14,16 @@ from core.evidence.evidence_store import EvidenceStore
 from core.dependencies.dependency_graph import DependencyGraph
 from core.prediction.tti_engine import TTIEngine
 from core.evidence.voi_engine import VoIEngine
+from core.prediction.accessibility_engine import AccessibilityEngine
+from core.risk.mission_risk_engine import MissionRiskEngine
+from core.validation.safety_gate import DeterministicSafetyGate
 from agents.evidence_agent import EvidenceAgent
 from agents.dependency_agent import DependencyAgent
-from agents.verification_agent import VerificationAgent
 from agents.simulation_agent import SimulationAgent
-from agents.decision_agent import DecisionAgent
-from agents.critic_agent import CriticAgent
 from agents.escalation_agent import EscalationAgent
-from core.risk.risk_engine import RiskEngine
+from agents.critic_agent import CriticAgent
+
+logger = logging.getLogger("pravah.tool_registry")
 
 
 @dataclass
@@ -143,7 +146,7 @@ class ToolRegistry:
         # 1. inspect_reality_state
         self.register(
             "inspect_reality_state",
-            "Inspect current authoritative reality state, version, water depth, rise rates, routes, and vehicles.",
+            "Inspect authoritative operational reality state: weather, water depths, road statuses, vehicle fleet, and world state version.",
             {
                 "type": "object",
                 "properties": {
@@ -157,8 +160,8 @@ class ToolRegistry:
                 "water_depth_m": s.current_water_depth,
                 "water_rise_rate_m_hr": s.water_rise_rate,
                 "policy": s.policy.value,
-                "routes": {k: {"status": r.status.value, "capacity": r.people_capacity, "eta": r.eta_minutes} for k, r in s.routes.items()},
-                "vehicles": {k: {"status": v.status.value, "capacity": v.capacity, "available": v.available} for k, v in s.vehicles.items()},
+                "routes": {k: {"name": r.name, "status": r.status.value, "capacity": r.people_capacity, "eta": r.eta_minutes, "operational": r.operational} for k, r in s.routes.items()},
+                "vehicles": {k: {"name": v.name, "capacity": v.capacity, "available": v.available, "status": v.status.value} for k, v in s.vehicles.items()},
                 "last_change": s.last_state_change,
             }
         )
@@ -166,7 +169,7 @@ class ToolRegistry:
         # 2. inspect_evidence
         self.register(
             "inspect_evidence",
-            "Inspect evidence store, extract conflicting observations, and calculate source reliability.",
+            "Inspect evidence store, extract conflicting observations, and check scout reports.",
             {
                 "type": "object",
                 "properties": {
@@ -183,7 +186,7 @@ class ToolRegistry:
         # 3. query_dependency_graph
         self.register(
             "query_dependency_graph",
-            "Traverse dependency graph and propagate downstream failures when an entity breaks.",
+            "Traverse dependency graph and propagate downstream cascades when a bridge/road breaks.",
             {
                 "type": "object",
                 "properties": {
@@ -195,24 +198,38 @@ class ToolRegistry:
             lambda s, st, g, p: DependencyAgent.propagate(s, g, p.get("entity_id", "bridge_b07"), EntityStatus.UNAVAILABLE)
         )
 
-        # 4. calculate_tti (Time-To-Invalidation Physics Engine)
+        # 4. calculate_route_eta
         self.register(
-            "calculate_tti",
-            "Calculate deterministic Time-To-Invalidation (TTI) for a corridor based on water rise rate and vehicle wading limits.",
+            "calculate_route_eta",
+            "Calculate deterministic travel ETA, delays, and traffic congestion penalties for a corridor.",
             {
                 "type": "object",
                 "properties": {
-                    "route_id": {"type": "string", "description": "Route ID to evaluate TTI for (e.g. route_r12, route_r14)"}
+                    "route_id": {"type": "string", "description": "Route ID (e.g. route_r12, route_r14)"},
+                    "traffic_congestion_pct": {"type": "number", "description": "Traffic congestion percentage (0-100)"}
                 },
                 "required": ["route_id"]
             },
-            lambda s, st, g, p: TTIEngine.evaluate_route_tti(s, p.get("route_id", "route_r12"))
+            lambda s, st, g, p: _calculate_route_eta_tool(s, p)
         )
 
-        # 5. calculate_voi (Value of Information Active Sensing Engine)
+        # 5. assess_mission_risk
+        self.register(
+            "assess_mission_risk",
+            "Evaluate mission vulnerability against delivery deadline (45m), 5-factor risk score, and downstream hospital impact.",
+            {
+                "type": "object",
+                "properties": {
+                    "route_id": {"type": "string", "description": "Proposed route ID to evaluate for the mission"}
+                }
+            },
+            lambda s, st, g, p: _assess_mission_risk_tool(s, p)
+        )
+
+        # 6. calculate_voi
         self.register(
             "calculate_voi",
-            "Calculate mathematical Value of Information (VoI) for evidence conflicts and rank active verification tasks.",
+            "Calculate mathematical Value of Information (VoI) based on Expected Loss Reduction vs Verification Cost to prioritize drone reconnaissance.",
             {
                 "type": "object",
                 "properties": {
@@ -225,23 +242,24 @@ class ToolRegistry:
                     "entity_id": a.entity_id,
                     "target_name": a.target_name,
                     "voi_score": a.voi_score,
-                    "uncertainty_level": a.uncertainty_level,
-                    "decision_impact": a.decision_impact,
-                    "acquisition_latency_min": a.acquisition_latency_min,
+                    "net_voi": a.net_voi,
+                    "expected_loss_reduction": a.expected_loss_reduction,
+                    "verification_cost": a.verification_cost,
+                    "investigate_recommended": a.investigate_recommended,
                     "reason": a.recommendation_reason,
                 }
                 for a in VoIEngine.calculate_voi_rankings(s, st, g, p.get("max_items", 3))
             ]
         )
 
-        # 6. simulate_counterfactual
+        # 7. simulate_counterfactual
         self.register(
             "simulate_counterfactual",
-            "Simulate counterfactual candidate branches over cloned isolated state deltas.",
+            "Simulate counterfactual candidate branches (Route R-12 vs Route R-14 vs Wait/Verify vs Escalate) over cloned state deltas.",
             {
                 "type": "object",
                 "properties": {
-                    "policy": {"type": "string", "description": "Optional policy to test"}
+                    "policy": {"type": "string", "description": "Optional policy to test (SAFE, BALANCED, URGENT)"}
                 }
             },
             lambda s, st, g, p: [
@@ -257,41 +275,41 @@ class ToolRegistry:
             ]
         )
 
-        # 7. validate_plan
+        # 8. propose_replan
         self.register(
-            "validate_plan",
-            "Validate candidate route against hard deterministic constraints (bridge failures, TTI, vehicle wading, capacity).",
+            "propose_replan",
+            "Agent proposal: Formulate a candidate route reroute or escalation for independent deterministic safety gate validation.",
             {
                 "type": "object",
                 "properties": {
-                    "route_id": {"type": "string", "description": "Route ID to validate (e.g. route_r12, route_r14)"}
+                    "proposed_route_id": {"type": "string", "description": "Candidate route (e.g. route_r14)"},
+                    "action_type": {"type": "string", "description": "REROUTE | HOLD | ESCALATE"},
+                    "reason": {"type": "string", "description": "Why this proposal was selected"}
+                },
+                "required": ["proposed_route_id", "reason"]
+            },
+            lambda s, st, g, p: _propose_replan_tool(s, p)
+        )
+
+        # 9. validate_plan (Deterministic Safety Gate)
+        self.register(
+            "validate_plan",
+            "Validate candidate route proposal through the independent Deterministic Safety Gate (checks bridge failure, TTI, fleet capacity, deadline).",
+            {
+                "type": "object",
+                "properties": {
+                    "route_id": {"type": "string", "description": "Route ID to validate (e.g. route_r12, route_r14)"},
+                    "demand": {"type": "integer", "description": "Evacuee / Supply Demand (default: 20)"}
                 },
                 "required": ["route_id"]
             },
-            lambda s, st, g, p: _validate_route_candidate(s, p.get("route_id"))
+            lambda s, st, g, p: _validate_plan_tool(s, p)
         )
 
-        # 8. critique_plan
-        self.register(
-            "critique_plan",
-            "Critic review of proposed decision packet against safety boundaries and fragile assumptions.",
-            {
-                "type": "object",
-                "properties": {
-                    "recommendation": {"type": "string", "description": "Proposed action recommendation text"}
-                }
-            },
-            lambda s, st, g, p: {
-                "approved": CriticAgent.review_decision(s, s.current_packet, RiskEngine.assess(s))[0],
-                "critique": CriticAgent.review_decision(s, s.current_packet, RiskEngine.assess(s))[1],
-                "violations": CriticAgent.review_decision(s, s.current_packet, RiskEngine.assess(s))[2]
-            }
-        )
-
-        # 9. escalate
+        # 10. escalate
         self.register(
             "escalate",
-            "Trigger external emergency airlift/state escalation when local vehicle capacity < demand.",
+            "Trigger external emergency state escalation / Mutual Aid when local vehicle capacity or road access is completely compromised.",
             {
                 "type": "object",
                 "properties": {
@@ -302,39 +320,24 @@ class ToolRegistry:
             lambda s, st, g, p: EscalationAgent.evaluate_escalation(s, p.get("demand", 25)) or {"status": "ESCALATION_NOT_REQUIRED", "message": "Local capacity is sufficient"}
         )
 
-        # 10. simulate_action (Active Sensing & Verification Action Execution)
-        self.register(
-            "simulate_action",
-            "Simulate operational execution action (RECON_DRONE, FIELD_SCOUT, DISPATCH, REROUTE, AIRLIFT_REQUEST).",
-            {
-                "type": "object",
-                "properties": {
-                    "action_type": {"type": "string", "description": "Action type: RECON_DRONE, FIELD_SCOUT, DISPATCH, REROUTE, AIRLIFT_REQUEST"},
-                    "detail": {"type": "string", "description": "Action description detail"}
-                },
-                "required": ["action_type"]
-            },
-            lambda s, st, g, p: _execute_simulated_action_tool(s, p)
-        )
-
         # 11. generate_decision_packet
         self.register(
             "generate_decision_packet",
-            "Autonomously generate and submit the final DecisionPacket recommendation for human authorization after inspecting TTI, VoI, and physical constraints.",
+            "Synthesize and serialize the final structured DecisionPacket contract for human incident commander sign-off.",
             {
                 "type": "object",
                 "properties": {
                     "recommendation": {
                         "type": "string",
-                        "description": "Final recommendation title (e.g. 'ROUTE R-12 — FAST CORRIDOR', 'ROUTE R-14 — SAFE BYPASS DETOUR', 'CAPACITY GAP — EXTERNAL ESCALATION REQUIRED')"
+                        "description": "Final recommendation title (e.g. 'ROUTE R-14 — SAFE BYPASS DETOUR (NH-6)', 'HOLD AND VERIFY', 'CAPACITY GAP — STATE ESCALATION')"
                     },
                     "route_id": {
                         "type": "string",
-                        "description": "Selected corridor route_id if applicable (e.g. 'route_r12', 'route_r14')"
+                        "description": "Selected corridor route_id if applicable ('route_r12', 'route_r14')"
                     },
                     "rationale": {
                         "type": "string",
-                        "description": "Detailed reasoning for the recommendation based on tool evidence and TTI"
+                        "description": "Detailed reasoning based on tool evidence, TTI, and mission deadline"
                     },
                     "critical_assumption": {
                         "type": "string",
@@ -355,157 +358,217 @@ class ToolRegistry:
         )
 
 
-def _execute_simulated_action_tool(state: RealityState, params: Dict[str, Any]) -> Dict[str, Any]:
-    act_type = params.get("action_type", "DISPATCH")
-    detail = params.get("detail", "Simulated operational action")
-    state.mutate_world_state(f"Simulated Action ({act_type}): {detail}")
+def _calculate_route_eta_tool(state: RealityState, params: Dict[str, Any]) -> Dict[str, Any]:
+    route_id = params.get("route_id", "route_r12")
+    congestion = float(params.get("traffic_congestion_pct", 30.0))
+    
+    if route_id not in state.routes:
+        return {"error": f"Route '{route_id}' not found"}
+
+    route = state.routes[route_id]
+    rain = 12.0 if state.weather.value == "Rain" else 0.0
+    
+    # Use deterministic accessibility engine
+    from core.state.ner_world_model import RouteOption, Bridge
+    r_opt = RouteOption(
+        id=route.id,
+        name=route.name,
+        label=route.label,
+        corridor_desc=route.name,
+        coordinates=route.coords,
+        distance_km=28.0 if route.id == "route_r12" else 42.0,
+        baseline_eta_min=route.eta_minutes,
+        current_eta_min=route.eta_minutes,
+        estimated_delay_min=0,
+        traffic_congestion_pct=congestion,
+        risk_level="LOW",
+        risk_score=20.0,
+        tti_minutes=999.0,
+        operational=route.operational,
+        feasibility_status="FEASIBLE" if route.operational else "PHYSICALLY_BLOCKED",
+        depends_on=route.depends_on,
+    )
+    
+    bridges = {}
+    if "bridge_b07" in state.entities:
+        b07 = state.entities["bridge_b07"]
+        bridges["bridge_b07"] = Bridge(
+            id="bridge_b07",
+            name="Saraighat Bridge B-07",
+            river_name="Brahmaputra",
+            coordinates=[26.19, 91.74],
+            water_clearance_m=2.0,
+            critical_submergence_threshold_m=0.50,
+            current_water_depth_m=state.current_water_depth,
+            rate_of_rise_m_hr=state.water_rise_rate,
+            operational=(b07.status != EntityStatus.UNAVAILABLE),
+        )
+
+    return AccessibilityEngine.calculate_corridor_accessibility(
+        r_opt, bridges, traffic_congestion_pct=congestion, rainfall_mm_hr=rain
+    )
+
+
+def _assess_mission_risk_tool(state: RealityState, params: Dict[str, Any]) -> Dict[str, Any]:
+    route_id = params.get("route_id", "route_r12")
+    route = state.routes.get(route_id)
+    if not route:
+        return {"error": f"Route '{route_id}' not found"}
+
+    from core.state.ner_world_model import RouteOption, Bridge, Mission, Facility
+    r_opt = RouteOption(
+        id=route.id,
+        name=route.name,
+        label=route.label,
+        corridor_desc=route.name,
+        coordinates=route.coords,
+        distance_km=28.0 if route.id == "route_r12" else 42.0,
+        baseline_eta_min=15 if route.id == "route_r12" else 35,
+        current_eta_min=route.eta_minutes,
+        estimated_delay_min=0,
+        traffic_congestion_pct=30.0,
+        risk_level="LOW",
+        risk_score=20.0,
+        tti_minutes=999.0,
+        operational=route.operational,
+        feasibility_status="FEASIBLE" if route.operational else "PHYSICALLY_BLOCKED",
+        depends_on=route.depends_on,
+    )
+
+    bridges = {
+        "bridge_b07": Bridge(
+            id="bridge_b07",
+            name="Saraighat Bridge B-07",
+            river_name="Brahmaputra",
+            coordinates=[26.19, 91.74],
+            water_clearance_m=2.0,
+            critical_submergence_threshold_m=0.50,
+            current_water_depth_m=state.current_water_depth,
+            rate_of_rise_m_hr=state.water_rise_rate,
+            operational=route.operational if route.id == "route_r12" else True,
+        )
+    }
+
+    acc = AccessibilityEngine.calculate_corridor_accessibility(r_opt, bridges, traffic_congestion_pct=30.0, rainfall_mm_hr=10.0)
+    
+    m17 = Mission(
+        id="M-17",
+        name="Mission M-17 (Assam Emergency Medical Convoy)",
+        commodity="Critical Vaccines & Blood Plasma",
+        priority="URGENT_LIFE_SAFETY",
+        origin_facility_id="depot_d03",
+        destination_facility_id="hosp_h03",
+        vehicle_id="vehicle_v02",
+        current_route_id=route_id,
+        quantity_units=100,
+        deadline_minutes=45,
+        baseline_eta_minutes=15 if route_id == "route_r12" else 35,
+        current_eta_minutes=acc["current_eta_min"],
+        estimated_delay_minutes=acc["estimated_delay_min"],
+    )
+
+    fac = Facility(
+        id="hosp_h03",
+        name="Dispur District Hospital H-03",
+        facility_type="DISTRICT_HOSPITAL",
+        district_id="dist_kamrup",
+        coordinates=[26.14, 91.78],
+        stock_hours_remaining=2.5,
+    )
+
+    return MissionRiskEngine.assess_mission_risk_and_impact(m17, r_opt, acc, fac)
+
+
+def _propose_replan_tool(state: RealityState, params: Dict[str, Any]) -> Dict[str, Any]:
+    proposed_route = params.get("proposed_route_id", "route_r14")
+    action_type = params.get("action_type", "REROUTE")
+    reason = params.get("reason", "Corridor reroute proposal")
+
     return {
-        "action_type": act_type,
-        "detail": detail,
-        "world_state_version": state.world_state_version,
+        "status": "PROPOSAL_FORMULATED",
+        "proposed_route_id": proposed_route,
+        "action_type": action_type,
+        "reason": reason,
+        "next_step": "SUBMIT_TO_DETERMINISTIC_SAFETY_GATE",
         "timestamp": state.now().isoformat(),
-        "status": "SIMULATED_ACTION_RECORDED",
     }
 
 
-def _validate_route_candidate(state: RealityState, route_id: Optional[str]) -> Dict[str, Any]:
-    if not route_id or route_id not in state.routes:
-        return {"valid": False, "reason": f"Route '{route_id}' does not exist in network."}
-
-    tti_eval = TTIEngine.evaluate_route_tti(state, route_id)
-    if not tti_eval["valid"]:
-        return {
-            "valid": False,
-            "route_id": route_id,
-            "reason": tti_eval["reason"],
-            "tti_minutes": tti_eval["tti_minutes"],
-            "fragility": tti_eval["fragility"],
-        }
-
-    avail_cap = sum(v.capacity for v in state.vehicles.values() if v.available)
-    if avail_cap <= 0:
-        return {
-            "valid": False,
-            "route_id": route_id,
-            "reason": "Total local vehicle capacity is 0 slots. Capacity gap exists.",
-            "available_capacity": 0,
-        }
+def _validate_plan_tool(state: RealityState, params: Dict[str, Any]) -> Dict[str, Any]:
+    route_id = params.get("route_id", "route_r14")
+    demand = int(params.get("demand", 20))
+    
+    is_valid, violations, metrics = DeterministicSafetyGate.validate_proposal(
+        state, route_id, evacuee_or_supply_demand=demand, max_allowable_eta_min=45
+    )
 
     return {
-        "valid": True,
+        "validation_status": "PASSED" if is_valid else "REJECTED",
+        "is_valid": is_valid,
         "route_id": route_id,
-        "name": tti_eval["route_name"],
-        "status": "OPERATIONAL",
-        "tti_minutes": tti_eval["tti_minutes"],
-        "eta_minutes": tti_eval["eta_minutes"],
-        "fragility": tti_eval["fragility"],
-        "capacity_confirmed": avail_cap,
+        "violations": violations,
+        "safety_metrics": metrics,
+        "safety_gate": "INDEPENDENT_DETERMINISTIC_GATE",
     }
 
 
 def _generate_decision_packet_tool(
-    state: RealityState, store: EvidenceStore, graph: DependencyGraph, params: Dict[str, Any]
+    state: RealityState,
+    store: EvidenceStore,
+    graph: DependencyGraph,
+    params: Dict[str, Any],
 ) -> Dict[str, Any]:
-    rec = params.get("recommendation", "ROUTE R-12 — FAST CORRIDOR")
-    route_id = params.get("route_id")
-    rationale = params.get("rationale", "Evaluated operational state, TTI, and candidate routes.")
-    crit_assumption = params.get("critical_assumption", "Selected corridor remains operational.")
-    consequence = params.get("consequence_if_wrong", "Evacuation delay increased.")
+    from agents.decision_agent import DecisionAgent
+    from core.risk.risk_engine import RiskEngine
 
-    validation = _validate_decision_packet_proposal(state, rec, route_id)
-    if not validation["valid"]:
-        return {
-            "accepted": False,
-            "status": "REJECTED_BY_SAFETY_VALIDATOR",
-            "reason": validation["reason"],
-            "suggestion": validation.get("suggestion", "Select an operational alternative route or call escalate tool.")
-        }
+    recommendation = params.get("recommendation", "ROUTE R-14 — SAFE BYPASS DETOUR (NH-6)")
+    route_id = params.get("route_id", "route_r14")
+    rationale = params.get("rationale", "Selected following multi-turn tool investigation.")
+    critical_assumption = params.get("critical_assumption", "NH-6 bypass corridor remains clear of landslide debris.")
+    consequence_if_wrong = params.get("consequence_if_wrong", "Convoy encounters secondary road blockage, incurring 45m delay.")
 
-    risk = RiskEngine.assess(state)
-    packet = DecisionAgent.generate_packet(state, risk)
+    # Validate route via independent deterministic gate
+    is_valid, violations, metrics = DeterministicSafetyGate.validate_proposal(
+        state, route_id, evacuee_or_supply_demand=20, max_allowable_eta_min=45
+    )
 
-    # Bind version and decision ID
-    packet.decision_id = f"dec_{uuid.uuid4().hex[:8]}"
+    # Base decision packet synthesis
+    packet = DecisionAgent.formulate_packet(
+        state, store, graph, RiskEngine.assess(state), recommendation=recommendation
+    )
     packet.world_state_version = state.world_state_version
-    packet.recommendation = rec
-    packet.route_id = route_id or packet.route_id
-    packet.why = [rationale]
-    packet.critical_assumption = crit_assumption
-    packet.consequence_if_wrong = consequence
+    packet.route_id = route_id
+    
+    # Calculate real physics-based TTI
+    from core.prediction.tti_engine import TTIEngine
+    tti_eval = TTIEngine.evaluate_route_tti(state, route_id)
+    packet.tti_minutes = tti_eval.get("tti_minutes", 60.0)
+    packet.fragility = tti_eval.get("fragility", "STABLE")
 
-    if packet.route_id:
-        tti_eval = TTIEngine.evaluate_route_tti(state, packet.route_id)
-        packet.tti_minutes = tti_eval.get("tti_minutes", 999.0)
-        packet.fragility = tti_eval.get("fragility", "STABLE")
-
-    # Compute VoI active sensing tasks
-    voi_actions = VoIEngine.calculate_voi_rankings(state, store, graph, max_items=3)
-    packet.voi_rankings = [
-        {
-            "action_type": a.action_type,
-            "target": a.target_name,
-            "score": a.voi_score,
-            "reason": a.recommendation_reason,
-        }
-        for a in voi_actions
-    ]
-
-    sim_report = SimulationAgent.stress_test(state, None)
-    packet.counterfactual_branches = [
-        {
-            "name": c.name,
-            "recommendation": c.recommendation,
-            "route_id": c.route_id,
-            "delay_min": c.delay_min,
-            "branch_status": c.branch_status,
-            "score": c.score,
-        }
-        for c in sim_report.counterfactuals
-    ]
+    packet.critical_assumption = critical_assumption
+    packet.consequence_if_wrong = consequence_if_wrong
+    packet.why = [rationale] if isinstance(rationale, str) else rationale
+    packet.reasoning_mode = "LLM_AGENTIC"
+    packet.requires_human_authorization = True
+    packet.authorization_status = "PENDING"
+    packet.ai_computed_at = state.now()
 
     state.current_packet = packet
-    state.life_cycle_state = "AWAITING_AUTHORIZATION"
+    state.last_state_change = f"Agent generated Decision Packet for {recommendation}"
 
     return {
-        "accepted": True,
-        "status": "DECISION_PACKET_VALIDATED_AND_CREATED",
         "decision_id": packet.decision_id,
         "world_state_version": packet.world_state_version,
         "recommendation": packet.recommendation,
         "route_id": packet.route_id,
+        "validation_status": "PASSED" if is_valid else "REJECTED",
+        "violations": violations,
         "tti_minutes": packet.tti_minutes,
-        "fragility": packet.fragility,
-        "confidence": packet.confidence.value,
+        "requires_human_authorization": True,
+        "authorization_status": "PENDING",
+        "status": "DECISION_PACKET_STAGED_FOR_COMMANDER_SIGN_OFF",
     }
 
 
-def _validate_decision_packet_proposal(
-    state: RealityState, recommendation: str, route_id: Optional[str]
-) -> Dict[str, Any]:
-    rec_upper = recommendation.upper()
-
-    if "ESCALATION" in rec_upper or "CAPACITY GAP" in rec_upper:
-        avail_cap = sum(v.capacity for v in state.vehicles.values() if v.available)
-        if avail_cap <= 0 or state.escalation_required:
-            return {"valid": True}
-
-    target_route = route_id
-    if not target_route:
-        if "R-12" in rec_upper or "r12" in recommendation.lower():
-            target_route = "route_r12"
-        elif "R-14" in rec_upper or "r14" in recommendation.lower():
-            target_route = "route_r14"
-
-    if target_route:
-        val_res = _validate_route_candidate(state, target_route)
-        if not val_res["valid"]:
-            return {
-                "valid": False,
-                "reason": f"Safety Validator Rejected: {val_res['reason']}",
-                "suggestion": "Select a viable detour corridor (e.g. route_r14) or invoke escalate tool."
-            }
-
-    return {"valid": True}
-
-
+# Singleton ToolRegistry
 GLOBAL_TOOL_REGISTRY = ToolRegistry()

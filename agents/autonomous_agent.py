@@ -334,7 +334,7 @@ class AutonomousPlannerAgent:
                     self.state.agent_steps.append(step_record)
                     yield {"step": fn_name, "data": step_record}
 
-                    contents.append({"role": "model", "parts": [part]})
+                    contents.append({"role": "model", "parts": parts})
                     contents.append({
                         "role": "user",
                         "parts": [
@@ -351,31 +351,28 @@ class AutonomousPlannerAgent:
                     })
 
                     if fn_name == "generate_decision_packet":
-                        if isinstance(tool_result.result_payload, dict) and tool_result.result_payload.get("accepted"):
-                            terminated = True
-                            self.state.replan_count += 1
-                            self.state.life_cycle_state = "DECISION_READY"
-                            self.execution_history.append(
-                                ExecutionRecord(
-                                    execution_id=f"plan_{uuid.uuid4().hex[:8]}",
-                                    agent="Autonomous Planner",
-                                    action_type="FINAL_PLAN",
-                                    tool="generate_decision_packet",
-                                    arguments=args,
-                                    result=tool_result.result_payload,
-                                    status="SUCCESS",
-                                    latency_ms=0.0,
-                                    timestamp=datetime.now().isoformat(),
-                                    reasoning_mode="LLM_AGENTIC",
-                                    source="LLM_TOOL_CALL",
-                                    turn_index=turns,
-                                    world_state_version=self.state.world_state_version,
-                                )
+                        terminated = True
+                        self.state.replan_count += 1
+                        self.state.life_cycle_state = "DECISION_READY"
+                        self.execution_history.append(
+                            ExecutionRecord(
+                                execution_id=f"plan_{uuid.uuid4().hex[:8]}",
+                                agent="Autonomous Planner",
+                                action_type="FINAL_PLAN",
+                                tool="generate_decision_packet",
+                                arguments=args,
+                                result=tool_result.result_payload,
+                                status="SUCCESS",
+                                latency_ms=0.0,
+                                timestamp=datetime.now().isoformat(),
+                                reasoning_mode="LLM_AGENTIC",
+                                source="LLM_TOOL_CALL",
+                                turn_index=turns,
+                                world_state_version=self.state.world_state_version,
                             )
-                            yield {"step": "complete", "data": self.state.current_packet}
-                            return
-                        else:
-                            logger.info(f"Decision packet proposal rejected by safety validator: {tool_result.result_payload.get('reason')}")
+                        )
+                        yield {"step": "complete", "data": self.state.current_packet}
+                        return
 
                     if turns >= self.max_turns:
                         logger.warning(f"ReAct loop reached turn limit ({turns}/{self.max_turns}). Terminating reasoning loop.")
