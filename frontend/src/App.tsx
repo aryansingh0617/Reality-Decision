@@ -386,15 +386,16 @@ export function App() {
       )}
 
       {/* Unified Tactical Header */}
-      <header className="flex h-14 shrink-0 items-center justify-between border-b border-[var(--rd-border)] px-4 bg-[var(--rd-surface)] shadow-md">
-        <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 font-bold text-white shadow-md shadow-cyan-500/20 text-sm">
+      <header className="flex h-14 shrink-0 items-center justify-between border-b border-[var(--rd-border)] px-5 bg-[var(--rd-surface)]/90 backdrop-blur-xl shadow-lg sticky top-0 z-40">
+        <div className="flex items-center gap-3.5">
+          <div className="relative flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 via-sky-600 to-blue-700 font-bold text-white shadow-lg shadow-cyan-500/25 border border-cyan-400/30 text-sm">
             प्र
+            <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-[#070c14] shadow-sm animate-pulse" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-sm tracking-tight text-white font-bold">
-                {t.appName} <span className="text-cyan-400 font-mono text-[11px] font-semibold">{t.psTag}</span>
+              <span className="text-sm tracking-tight text-white font-bold font-sans">
+                {t.appName} <span className="text-cyan-400 font-mono text-[11px] font-bold px-1.5 py-0.5 rounded bg-cyan-950/60 border border-cyan-800/50">{t.psTag}</span>
               </span>
               <PravahDataBadge type="REAL" lang={appLang} />
             </div>
@@ -407,32 +408,32 @@ export function App() {
           <button
             onClick={() => setAppLang((l) => (l === 'en' ? 'hi' : 'en'))}
             data-testid="language-toggle-button"
-            className="flex items-center gap-1 text-xs bg-cyan-950/80 hover:bg-cyan-900 text-cyan-300 border border-cyan-700/60 px-2.5 py-1 rounded-md font-bold transition-all shadow"
+            className="flex items-center gap-1.5 text-xs bg-cyan-950/80 hover:bg-cyan-900 text-cyan-300 border border-cyan-700/60 px-3 py-1.5 rounded-lg font-bold transition-all shadow-sm hover:shadow-cyan-500/20"
           >
             <Languages className="w-3.5 h-3.5 text-cyan-400" />
             <span>{isHindi ? 'English' : 'हिन्दी (Hindi)'}</span>
           </button>
 
-          <button onClick={() => setDispatchSlipOpen(true)} data-testid="dispatch-slip-button" className="rd-btn rd-btn-ghost hidden sm:inline-flex text-xs text-emerald-300 border-emerald-800/60 bg-emerald-950/40">
-            <FileText className="h-3 w-3 text-emerald-400" /> {isHindi ? 'NDMA आदेश (IAP)' : 'NDMA Order (IAP)'}
+          <button onClick={() => setDispatchSlipOpen(true)} data-testid="dispatch-slip-button" className="rd-btn rd-btn-ghost hidden sm:inline-flex text-xs text-emerald-300 border-emerald-800/60 bg-emerald-950/40 hover:bg-emerald-900/60 shadow-sm">
+            <FileText className="h-3.5 w-3.5 text-emerald-400" /> {isHindi ? 'NDMA आदेश (IAP)' : 'NDMA Order (IAP)'}
           </button>
-          <button onClick={() => setComplianceOpen(true)} data-testid="compliance-matrix-button" className="rd-btn rd-btn-ghost hidden sm:inline-flex text-xs text-cyan-300 border-cyan-800/60 bg-cyan-950/40">
-            <ShieldCheck className="h-3 w-3 text-cyan-400" /> {isHindi ? 'PS 26002 अनुपालन' : 'PS 26002 Matrix'}
+          <button onClick={() => setComplianceOpen(true)} data-testid="compliance-matrix-button" className="rd-btn rd-btn-ghost hidden sm:inline-flex text-xs text-cyan-300 border-cyan-800/60 bg-cyan-950/40 hover:bg-cyan-900/60 shadow-sm">
+            <ShieldCheck className="h-3.5 w-3.5 text-cyan-400" /> {isHindi ? 'PS 26002 अनुपालन' : 'PS 26002 Matrix'}
           </button>
-          <button onClick={() => setWalkthroughOpen(true)} data-testid="walkthrough-button" className="rd-btn rd-btn-ghost hidden md:inline-flex text-xs">
-            <SparklesIcon className="h-3 w-3 text-cyan-400" /> {t.howItWorks}
+          <button onClick={() => setWalkthroughOpen(true)} data-testid="walkthrough-button" className="rd-btn rd-btn-ghost hidden md:inline-flex text-xs text-slate-300 hover:text-white">
+            <SparklesIcon className="h-3.5 w-3.5 text-cyan-400" /> {t.howItWorks}
           </button>
-          <button onClick={() => setVerifyOpen(true)} data-testid="verify-autonomy-button" className="rd-btn rd-btn-ghost hidden lg:inline-flex text-xs">
-            <ShieldCheck className="h-3 w-3 text-emerald-400" /> {t.verifyAutonomy}
+          <button onClick={() => setVerifyOpen(true)} data-testid="verify-autonomy-button" className="rd-btn rd-btn-ghost hidden lg:inline-flex text-xs text-emerald-300 hover:text-emerald-200 border-emerald-900/40 bg-emerald-950/20">
+            <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" /> {t.verifyAutonomy}
           </button>
           <button
             onClick={toggleFallback}
             data-testid="simulate-outage-button"
             title="Simulate model outage to verify deterministic fallback"
             className="rd-btn rd-btn-ghost hidden sm:inline-flex text-xs"
-            style={fallbackForced ? { color: '#fbbf24', borderColor: 'rgba(245,158,11,0.4)', background: 'rgba(245,158,11,0.12)' } : undefined}
+            style={fallbackForced ? { color: '#fbbf24', borderColor: 'rgba(245,158,11,0.5)', background: 'rgba(245,158,11,0.15)' } : undefined}
           >
-            <Zap className="h-3 w-3 text-amber-400" /> <span>{fallbackForced ? t.outageOn : t.simulateOutage}</span>
+            <Zap className="h-3.5 w-3.5 text-amber-400" /> <span>{fallbackForced ? t.outageOn : t.simulateOutage}</span>
           </button>
 
           {/* Narration settings */}
@@ -444,13 +445,13 @@ export function App() {
               className="rd-btn rd-btn-ghost text-xs"
               style={narrate ? { color: '#38bdf8', borderColor: 'rgba(6,182,212,0.4)' } : undefined}
             >
-              {narrate ? <Volume2 className="h-3 w-3 text-cyan-400" /> : <VolumeX className="h-3 w-3 text-slate-400" />}
+              {narrate ? <Volume2 className="h-3.5 w-3.5 text-cyan-400" /> : <VolumeX className="h-3.5 w-3.5 text-slate-400" />}
               <span className="hidden lg:inline">{t.narration}</span>
             </button>
             {voiceOpen && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setVoiceOpen(false)} />
-                <div className="absolute right-0 top-[calc(100%+6px)] z-50 w-64 rounded-xl p-3 bg-[var(--rd-elevated)] border border-slate-700 shadow-2xl space-y-2.5">
+                <div className="absolute right-0 top-[calc(100%+6px)] z-50 w-64 rounded-xl p-3 bg-[var(--rd-elevated)] border border-slate-700 shadow-2xl space-y-2.5 rd-anim-up">
                   <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
                     <span className="font-bold text-[11px] text-white uppercase tracking-wider">{t.narration}</span>
                     <label className="flex cursor-pointer items-center gap-1.5 text-xs text-slate-300">
@@ -462,9 +463,9 @@ export function App() {
                           narrateRef.current = e.target.checked;
                           if (!e.target.checked) stopSpeaking();
                         }}
-                        className="accent-cyan-500 rounded"
+                        className="rounded accent-cyan-500"
                       />
-                      {t.voiceOver}
+                      <span>{t.voiceOver}</span>
                     </label>
                   </div>
                   <div>
@@ -475,7 +476,7 @@ export function App() {
                         setLang(e.target.value);
                         langRef.current = e.target.value;
                       }}
-                      className="w-full rounded-md px-2 py-1 text-xs bg-[var(--rd-panel)] border border-slate-700 text-white"
+                      className="w-full rounded-md px-2 py-1 text-xs bg-[var(--rd-panel)] border border-slate-700 text-white font-mono"
                     >
                       {[...new Set(voices.map((v) => v.lang))].sort().map((l) => (
                         <option key={l} value={l}>{l}</option>
@@ -499,8 +500,8 @@ export function App() {
         lang={appLang}
       />
 
-      {/* Unified Navigation Bar */}
-      <nav className="flex shrink-0 items-center gap-1 border-b border-[var(--rd-border)] px-4 py-1.5 overflow-x-auto bg-[var(--rd-surface)]">
+      {/* Unified Luxury Navigation Bar */}
+      <nav className="flex shrink-0 items-center gap-1.5 border-b border-[var(--rd-border)] px-5 py-2 overflow-x-auto bg-[var(--rd-surface)]/80 backdrop-blur-md sticky top-14 z-30">
         {NAV.map((n) => {
           const Icon = n.icon;
           const active = section === n.key;
@@ -509,9 +510,9 @@ export function App() {
               key={n.key}
               onClick={() => setSection(n.key)}
               data-testid={`nav-${n.key}`}
-              className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all border ${
+              className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all border ${
                 active
-                  ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/60 shadow-sm'
+                  ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/60 shadow-md shadow-cyan-500/10'
                   : 'bg-[var(--rd-panel)] text-slate-400 border-[var(--rd-border)] hover:bg-[var(--rd-elevated)] hover:text-white'
               }`}
             >
@@ -522,127 +523,121 @@ export function App() {
         })}
       </nav>
 
-      {/* Main Content */}
-      <main className="flex-1 overflow-y-auto bg-[#07090e]">
+      {/* Guided Walkthrough Banner */}
+      {demo.active && (
+        <div className="sticky top-[102px] z-30 flex items-center justify-between border-b border-cyan-500/40 bg-gradient-to-r from-cyan-950/90 via-sky-950/90 to-blue-950/90 px-6 py-2.5 text-xs text-cyan-200 shadow-xl backdrop-blur-md">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-2 w-2 rounded-full bg-cyan-400 animate-ping" />
+            <span className="font-mono font-bold uppercase tracking-wider text-cyan-300">
+              {t.guidedDemo} [{demo.step}/4]:
+            </span>
+            <span className="font-medium text-white">{demo.caption}</span>
+          </div>
+          <button
+            onClick={stopDemo}
+            className="flex items-center gap-1 font-mono font-bold text-cyan-300 hover:text-white px-2 py-0.5 rounded bg-cyan-900/60 border border-cyan-700/60 transition-colors"
+          >
+            <X className="h-3 w-3" /> {t.stopDemo}
+          </button>
+        </div>
+      )}
+
+      {/* Main Tactical Workspace */}
+      <main className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 lg:px-8 space-y-4">
         {section === 'command' && (
-          <div className="mx-auto max-w-[1600px] space-y-3.5 p-4 rd-anim-fade">
-            {/* Guided demo caption banner */}
-            {demo.active && (
-              <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl border border-cyan-500/60 bg-gradient-to-r from-cyan-950/80 to-blue-950/80 shadow-xl rd-anim-up">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-cyan-900/80 text-cyan-300 border border-cyan-500/40">
-                  <PlayCircle className="h-4 w-4 animate-pulse" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-[10.5px] font-mono font-bold text-cyan-300 uppercase tracking-wider">
-                    {t.guidedDemoStep} {demo.step} {t.of} 6
+          <div className="mx-auto max-w-[1600px] space-y-4 rd-anim-fade">
+            {/* Top Operational Reality Strip */}
+            <div className="space-y-3">
+              <div className="flex flex-col gap-3 xl:flex-row xl:items-stretch">
+                <div className="rd-panel rd-shimmer flex flex-1 flex-col justify-between p-5 bg-[var(--rd-surface)] border border-[var(--rd-border)] rounded-2xl shadow-xl">
+                  <div>
+                    <div className="t-label text-cyan-400 font-bold flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                      <span>{t.currentSituation}</span>
+                    </div>
+                    <div className="t-h1 mt-1.5 text-white font-bold text-lg tracking-tight font-sans">
+                      {isHindi ? 'कामरूप मेट्रोपॉलिटन / गुवाहाटी NH-27 आपातकालीन लॉजिस्टिक्स गलियारा' : (state?.mission || 'Emergency Logistics Mission')}
+                    </div>
+                    <div className="t-body mt-1.5 text-slate-300 text-xs leading-relaxed max-w-3xl">
+                      {isHindi
+                        ? 'ब्रह्मपुत्र नदी के जल स्तर और सरायघाट पुल B-07 की वास्तविक समय में निगरानी जारी है। निर्णय चक्र चलाकर सिस्टम वास्तविकता की जांच करेगा और सुरक्षित मार्ग की अनुशंसा करेगा।'
+                        : (state?.last_state_change || 'Monitoring live conditions. Run a decision cycle to let the system investigate reality and recommend the safest action.')}
+                    </div>
                   </div>
-                  <div className="text-xs font-bold text-white mt-0.5 truncate">{demo.caption}</div>
-                </div>
-                <div className="hidden items-center gap-1 sm:flex">
-                  {[1, 2, 3, 4, 5, 6].map((n) => (
-                    <span
-                      key={n}
-                      className="h-1 rounded-full transition-all"
-                      style={{
-                        width: n === demo.step ? 20 : 6,
-                        background: n <= demo.step ? '#38bdf8' : '#334155',
-                      }}
-                    />
-                  ))}
-                </div>
-                <button onClick={stopDemo} data-testid="stop-demo-button" className="rd-btn rd-btn-ghost shrink-0 font-bold text-xs h-7 px-2.5">
-                  <Square className="h-3 w-3 text-rose-400" /> {t.stopDemo}
-                </button>
-              </div>
-            )}
 
-            {/* Situation + Scenario Controls Hero */}
-            <div className="flex flex-col gap-3 xl:flex-row xl:items-stretch">
-              <div className="rd-panel flex flex-1 flex-col justify-between p-4 bg-[var(--rd-surface)] border border-[var(--rd-border)] rounded-xl shadow-md">
-                <div>
-                  <div className="t-label text-slate-400 font-bold">{t.currentSituation}</div>
-                  <div className="t-h1 mt-1 text-white font-bold text-base">
-                    {isHindi ? 'कामरूप मेट्रोपॉलिटन / गुवाहाटी NH-27 आपातकालीन लॉजिस्टिक्स गलियारा' : (state?.mission || 'Emergency Logistics Mission')}
-                  </div>
-                  <div className="t-body mt-1 text-slate-300 text-xs">
-                    {isHindi
-                      ? 'ब्रह्मपुत्र नदी के जल स्तर और सरायघाट पुल B-07 की वास्तविक समय में निगरानी जारी है। निर्णय चक्र चलाकर सबसे सुरक्षित मार्ग की जांच करें।'
-                      : (state?.last_state_change || 'Monitoring live conditions. Run a decision cycle to let the system investigate reality and recommend the safest action.')}
+                  <div className="mt-4 flex flex-wrap gap-2.5">
+                    <button
+                      onClick={runCycle}
+                      disabled={working || demo.active}
+                      data-testid="run-cycle-button"
+                      className="rd-btn rd-btn-primary rd-shimmer shadow-lg shadow-cyan-500/25"
+                    >
+                      {working ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4 fill-white" />}
+                      {working ? t.runningCycle : t.runDecisionCycle}
+                    </button>
+                    <button
+                      onClick={() => injectDisruption('bridge_fails')}
+                      disabled={working || demo.active}
+                      data-testid="inject-bridge-button"
+                      className="rd-btn bg-rose-950/80 hover:bg-rose-900 text-rose-200 border border-rose-600/70 font-bold shadow-lg shadow-rose-950/30 hover:border-rose-500"
+                    >
+                      <AlertTriangle className="h-4 w-4 text-rose-400" /> {t.simulateBridgeFail}
+                    </button>
+                    <button
+                      onClick={demo.active ? stopDemo : runAutoDemo}
+                      data-testid="auto-demo-button"
+                      className="rd-btn rd-btn-ghost font-bold border-cyan-800/40 hover:border-cyan-500/60"
+                    >
+                      {demo.active ? (
+                        <><Square className="h-3.5 w-3.5 text-rose-400" /> {t.stopDemo}</>
+                      ) : (
+                        <><PlayCircle className="h-3.5 w-3.5 text-cyan-400" /> {t.guidedDemo}</>
+                      )}
+                    </button>
                   </div>
                 </div>
 
-                <div className="mt-3.5 flex flex-wrap gap-2">
-                  <button
-                    onClick={runCycle}
-                    disabled={working || demo.active}
-                    data-testid="run-cycle-button"
-                    className="rd-btn rd-btn-primary"
-                  >
-                    {working ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
-                    {working ? t.runningCycle : t.runDecisionCycle}
-                  </button>
-                  <button
-                    onClick={() => injectDisruption('bridge_fails')}
-                    disabled={working || demo.active}
-                    data-testid="inject-bridge-button"
-                    className="rd-btn bg-rose-950/70 hover:bg-rose-900/80 text-rose-300 border border-rose-700/60 font-bold"
-                  >
-                    <AlertTriangle className="h-3.5 w-3.5 text-rose-400" /> {t.simulateBridgeFail}
-                  </button>
-                  <button
-                    onClick={demo.active ? stopDemo : runAutoDemo}
-                    data-testid="auto-demo-button"
-                    className="rd-btn rd-btn-ghost font-bold"
-                  >
-                    {demo.active ? (
-                      <><Square className="h-3 w-3 text-rose-400" /> {t.stopDemo}</>
-                    ) : (
-                      <><PlayCircle className="h-3.5 w-3.5 text-cyan-400" /> {t.guidedDemo}</>
-                    )}
-                  </button>
+                {/* Top Summary Metrics */}
+                <div className="grid grid-cols-2 gap-3 xl:w-[440px]">
+                  <Metric
+                    label={t.metricWaterLevel}
+                    value={`${state?.current_water_depth_m ?? 0.35}m`}
+                    hint={isHindi ? 'सीमा: 0.50m' : 'Limit: 0.50m'}
+                    tone={(state?.current_water_depth_m ?? 0) > 0.5 ? 'danger' : 'neutral'}
+                  />
+                  <Metric
+                    label={t.metricRiseRate}
+                    value={`+${state?.water_rise_rate_m_hr ?? 0.15}m/h`}
+                    hint={isHindi ? 'CWC गेज डेटा' : 'CWC Gauge'}
+                    tone="warn"
+                  />
+                  <Metric
+                    label={t.metricTimeToImpact}
+                    value={
+                      packet?.tti_minutes !== undefined && packet.tti_minutes > 0 && packet.tti_minutes < 900
+                        ? `${Math.round(packet.tti_minutes)} min`
+                        : packet?.tti_minutes === 0
+                        ? (isHindi ? '0 min (जलमग्न)' : '0 min (Submerged)')
+                        : packet?.route_id === 'route_r14'
+                        ? (isHindi ? '340 min (सुरक्षित)' : '340 min (Safe)')
+                        : (isHindi ? '60 min (सक्रिय)' : '60 min (Active)')
+                    }
+                    hint={
+                      packet?.tti_minutes === 0
+                        ? (isHindi ? 'सरायघाट पुल जलमग्न' : 'Bridge B-07 Submerged')
+                        : packet?.route_id === 'route_r14'
+                        ? (isHindi ? 'NH-6 दक्षिण बाईपास सुरक्षित' : 'NH-6 Bypass Clear')
+                        : (isHindi ? 'पुल जलमग्नता गणना' : 'Submergence TTI')
+                    }
+                    tone={packet?.tti_minutes === 0 ? 'danger' : (packet?.tti_minutes ?? 60) < 45 ? 'warn' : 'accent'}
+                  />
+                  <Metric
+                    label={t.metricPlanStatus}
+                    value={authorized ? t.statusAuthorized : packet ? t.statusAwaiting : t.statusNone}
+                    hint={`v${state?.world_state_version ?? 1}`}
+                    tone={authorized ? 'success' : 'warn'}
+                  />
                 </div>
-              </div>
-
-              {/* Top Summary Metrics */}
-              <div className="grid grid-cols-2 gap-2.5 xl:w-[420px]">
-                <Metric
-                  label={t.metricWaterLevel}
-                  value={`${state?.current_water_depth_m ?? 0.35}m`}
-                  hint={isHindi ? 'सीमा: 0.50m' : 'Limit: 0.50m'}
-                  tone={(state?.current_water_depth_m ?? 0) > 0.5 ? 'danger' : 'neutral'}
-                />
-                <Metric
-                  label={t.metricRiseRate}
-                  value={`+${state?.water_rise_rate_m_hr ?? 0.15}m/h`}
-                  hint={isHindi ? 'CWC गेज डेटा' : 'CWC Gauge'}
-                  tone="warn"
-                />
-                <Metric
-                  label={t.metricTimeToImpact}
-                  value={
-                    packet?.tti_minutes !== undefined && packet.tti_minutes > 0 && packet.tti_minutes < 900
-                      ? `${Math.round(packet.tti_minutes)} min`
-                      : packet?.tti_minutes === 0
-                      ? (isHindi ? '0 min (जलमग्न / Submerged)' : '0 min (Submerged)')
-                      : packet?.route_id === 'route_r14'
-                      ? (isHindi ? '340 min (सुरक्षित बाईपास)' : '340 min (Safe Bypass)')
-                      : (isHindi ? '60 min (सक्रिय सीमा)' : '60 min (Active Limit)')
-                  }
-                  hint={
-                    packet?.tti_minutes === 0
-                      ? (isHindi ? 'सरायघाट पुल जलमग्न' : 'Bridge B-07 Submerged')
-                      : packet?.route_id === 'route_r14'
-                      ? (isHindi ? 'NH-6 दक्षिण बाईपास सुरक्षित' : 'NH-6 Bypass Clear')
-                      : (isHindi ? 'पुल जलमग्नता गणना' : 'Submergence TTI')
-                  }
-                  tone={packet?.tti_minutes === 0 ? 'danger' : (packet?.tti_minutes ?? 60) < 45 ? 'warn' : 'accent'}
-                />
-                <Metric
-                  label={t.metricPlanStatus}
-                  value={authorized ? t.statusAuthorized : packet ? t.statusAwaiting : t.statusNone}
-                  hint={`v${state?.world_state_version ?? 1}`}
-                  tone={authorized ? 'success' : 'warn'}
-                />
               </div>
             </div>
 
